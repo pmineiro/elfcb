@@ -1,0 +1,154 @@
+# See estimate.ipynb for derivation, implementation notes, and test
+def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=False):
+    import numpy as np
+    from scipy.special import xlogy
+    from scipy.optimize import brentq, nnls
+    
+    assert wmin >= 0
+    assert wmin < 1
+    assert wmax > 1
+    assert rmax >= rmin
+
+    num = sum(c for c, w, r in datagen())
+    assert num >= 1
+
+    # solve dual
+
+    def sumofone(beta):
+        return sum(c/((w - 1) * beta + num)
+                   for c, w, _ in datagen()
+                   if c > 0)
+
+    def sumofw(beta):
+        return sum((c * w)/((w - 1) * beta + num)
+                   for c, w, _ in datagen()
+                   if c > 0)
+
+    def dualobjective(beta):
+        return sum(xlogy(c, (w - 1) * beta + num) for c, w, _ in datagen())
+
+    def graddualobjective(beta):
+        return sum(c * (w - 1)/((w - 1) * beta + num) 
+                   for c, w, _ in datagen()
+                   if c > 0)
+
+    betamax = min( ((num - c) / (1 - w) 
+                    for c, w, _ in datagen() 
+                    if w < 1 and c > 0 ),
+                   default=num / (1 - wmin))
+    betamax = min(betamax, num / (1 - wmin))
+
+    betamin = max( ((num - c) / (1 - w) 
+                    for c, w, _ in datagen() 
+                    if w > 1 and c > 0 ),
+                   default=num / (1 - wmax))
+    betamin = max(betamin, num / (1 - wmax))
+
+    gradmin = graddualobjective(betamin)
+    gradmax = graddualobjective(betamax)
+    if gradmin * gradmax < 0:
+        betastar = brentq(f=graddualobjective, a=betamin, b=betamax)
+    else:
+        betalow = num / (1 - wmax)
+        if (    betamin <= betalow 
+            and sumofone(betalow) <= 1+1e-6 
+            and sumofw(betalow) <= 1+1e-6):
+            flow = dualobjective(betalow)
+        else:
+            flow = None
+
+        betahigh = num / (1 - wmin)
+        if (    betamax >= betahigh 
+            and sumofone(betahigh) <= 1+1e-6 
+            and sumofw(betahigh) <= 1+1e-6):
+            fhigh = dualobjective(betahigh)
+        else:
+            fhigh = None
+
+        if flow is None:
+            betastar = betahigh
+        elif fhigh is None:
+            betastar = betalow
+        elif flow > fhigh:
+            betastar = betalow
+        else:
+            betastar = betahigh
+
+    # back out primal
+
+    walpha = ( wmin, wmax )
+
+    remone = 1 - sumofone(betastar)
+    remw = 1 - sumofw(betastar)
+    A = np.array([ [ 1, w ] for w in walpha ])
+    b = np.array([ remone, remw ])
+
+    qexlst, _ = nnls(A.T, b)
+
+    qex = { w: q for w, q in zip(walpha, qexlst) }
+    
+    if raiseonerr:
+        from pprint import pformat
+        assert (
+                    np.allclose(sumofone(betastar) + sum(q for _, q in qex.items()), 1)
+                and np.allclose(sumofw(betastar) + sum(w*q for w, q in qex.items()), 1)
+               ), pformat({
+                'betastar': betastar,
+                'bounds': (betamin, betamax),
+                'walpha': walpha,
+                'sumofone': sumofone(betastar) + sum(q for _, q in qex.items()),
+                'sumofw': sumofw(betastar) + sum(w*q for w, q in qex.items()),
+                'data': [ (c, w, r) for c, w, r in datagen() if c > 0 ],
+                'qstar': { (w, r): c/(betastar*(w-1)+num) for c, w, r in datagen() if c > 0 },
+                'qex': qex,
+            })
+
+    if censored:
+        vnumhat = 0
+        vdenomhat = 0
+
+        for c, w, r in datagen():
+            if c > 0:
+                if r is not None:
+                    vnumhat += w*r* c/((w - 1) * betastar + num)
+                    vdenomhat += w*1* c/((w - 1) * betastar + num)
+
+        if np.allclose(vdenomhat, 0):
+            vhat = vmin = vmax = None
+        else:
+            vmin = min([
+                ( (vnumhat + sum(w*q*rmin for w, q in qex.items())) /
+                  (vdenomhat + sum(w*q for w, q in qex.items()))
+                ),
+                ( vnumhat / vdenomhat ),
+            ])
+            vmax = max([
+                ( (vnumhat + sum(w*q*rmax for w, q in qex.items())) /
+                  (vdenomhat + sum(w*q for w, q in qex.items()))
+                ),
+                ( vnumhat / vdenomhat ),
+            ])
+
+            vhat = 0.5*(vmin + vmax)
+    else:
+        vhat = 0
+        for c, w, r in datagen():
+            if c > 0:
+                vhat += w*r* c/((w - 1) * betastar + num)
+
+        vmin = vhat
+        vmax = vhat
+
+        for w, q in qex.items():
+            vmin += w*q*rmin
+            vhat += w*q*0.5*(rmax - rmin)
+            vmax += w*q*rmax
+
+    return vhat, {
+            'betastar': betastar,
+            'vmin': vmin,
+            'vmax': vmax,
+            'qex': qex,
+            'num': num,
+            'qfunc': lambda c, w, r: c/(betastar*(w-1)+num),
+           }
