@@ -31,3 +31,9 @@ Here's a recipe.
 ...
 (elfcb) pmineiro@PMINEIRO-13% sudo rm /usr/lib/libboost_python37.so /usr/lib/libboost_python37.so.1.68.0 # sad life
 ```
+
+### Step 2: Install Python packages
+
+```console
+(elfcb) pmineiro@PMINEIRO-14% pip install cvxpy jupyter jupyter-contrib-nbextensions jupyter-nbextensions-configurator
+...
