@@ -123,8 +123,6 @@ def make_historical_policy(data, actionseed, vwextraargs):
     vwargs = '--quiet -f damodel{} -b 20 --cb_type dr --cb_explore {} {}'.format(
                  os.getpid(), numclasses, vwextraargs
     )
-#    from pprint import pformat
-#    print(pformat(vwargs))
 
     vw = pyvw.vw(vwargs)
     learnlog, _, _ = data.splits()
@@ -144,19 +142,9 @@ def make_historical_policy(data, actionseed, vwextraargs):
             del ex
 
             action = state.choice(numclasses, p=probs)
-#            from pprint import pformat
-#            print(pformat({
-#                'state': state,
-#                'action': action,
-#                'actionseed': actionseed,
-#                'probs': probs,
-#                'numclasses': numclasses
-#            }))
             cost = 0 if 1+action == label else 1
             
             extext = '{}:{}:{} {}'.format(1+action, cost, probs[action], rest)
-#            from pprint import pformat
-#            print(pformat(extext))
 
             ex = vw.example(extext)
             vw.learn(ex)
@@ -278,8 +266,6 @@ def dofile(filename, lineseed, actionseed, passes, challenger, exploration):
         import numpy
 
         data = Dataset(lineseed, filename)
-#        from pprint import pformat
-#        print(pformat(list(data)[0:3]))
         vwextraargs = exploration.getvwextraargs()
         make_historical_policy(data, actionseed, vwextraargs)
         wmax = exploration.getwmax(data.numclasses())
@@ -304,19 +290,6 @@ def dofile(filename, lineseed, actionseed, passes, challenger, exploration):
         mlewinloss = ('mle' if deltasmean > max(1e-8, 2*deltastd) else
                       'base' if deltasmean < min(-1e-8, -2*deltastd) else
                       'tie')
-
-#        from pprint import pformat
-#        print(pformat({
-#            'filename': filename,
-#            'mlewinloss': mlewinloss,
-##            'bpvs': bpvs,
-##            'mlepvs': mlepvs,
-#            'meanbpvs': numpy.mean(bpvs),
-#            'meanmlepvs': numpy.mean(mlepvs),
-#            'deltasmean': deltasmean,
-#            'deltastd': deltastd,
-#        }), flush=True)
-    
     finally:
         try:
             import os
