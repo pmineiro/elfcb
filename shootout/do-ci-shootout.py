@@ -273,7 +273,7 @@ def eval_pi(data, actionseed):
 
 # main
 
-def dofile(filename, lineseed, actionseed, passes, exploration):
+def dofile(filename, lineseed, actionseed, passes, challenger, exploration):
     try:
         import numpy
 
@@ -292,8 +292,8 @@ def dofile(filename, lineseed, actionseed, passes, exploration):
         for x in range(60):
             learn_pi(data, actionseed+x, BaselineBatchDualSolver(wmax=wmax), passes)
             bpvs.append(eval_pi(data, actionseed+x))
-    
-            learn_pi(data, actionseed+x, CIBatchDualSolver(wmax=wmax), passes)
+
+            learn_pi(data, actionseed+x, challenger.solver(wmax=wmax), passes)
             mlepvs.append(eval_pi(data, actionseed+x))
     
         bpvs = numpy.array(bpvs)
@@ -327,7 +327,7 @@ def dofile(filename, lineseed, actionseed, passes, exploration):
 
     return mlewinloss
 
-def doit(lineseed, actionseed, passes, dirname, exploration, poolsize):
+def doit(lineseed, actionseed, passes, dirname, challenger, exploration, poolsize):
     from collections import Counter
     from multiprocessing import Pool
 
@@ -339,6 +339,7 @@ def doit(lineseed, actionseed, passes, dirname, exploration, poolsize):
                                        lineseed,
                                        actionseed,
                                        passes,
+                                       challenger,
                                        exploration))
              for fileno, filename in enumerate(all_data_files(dirname))
 #	     if '1413_3' in filename 
@@ -393,7 +394,18 @@ class Cover:
 
 # main
 
+from enum import Enum
 import argparse
+
+class Challenger(Enum):
+    CI = 'ci'
+    MLE = 'mle'
+
+    def __str__(self):
+        return self.name.lower()
+
+    def solver(self, *args, **kwargs):
+        return CIBatchDualSolver(*args, **kwargs) if self == Challenger.CI else MLEBatchDualSolver(*args, **kwargs)
 
 parser = argparse.ArgumentParser(description='run CI shootout')
 parser.add_argument('--lineseed', type=int, default=45)
@@ -401,6 +413,10 @@ parser.add_argument('--actionseed', type=int, default=2112)
 parser.add_argument('--passes', type=int, default=4)
 parser.add_argument('--poolsize', type=int, default=None)
 parser.add_argument('--dirname', type=str, required=True)
+parser.add_argument('--challenger',
+                    type=Challenger,
+                    choices=list(Challenger),
+                    default=Challenger.CI)
 
 args = parser.parse_args()
 
@@ -414,7 +430,7 @@ for exploration in (
     Cover(32)
 ):
     result = doit(args.lineseed, args.actionseed, args.passes, 
-                  args.dirname, exploration, args.poolsize)
+                  args.dirname, args.challenger, exploration, args.poolsize)
 
     from pprint import pformat
     print(pformat((str(exploration), result)), flush=True)
