@@ -14,3 +14,6 @@ cigt10class: MLE
 
 mlegt10class: MLE
 	./do-ci-shootout.py --dirname gt10class --challenger mle
+
+estimationshootout: MLE
+	./do-estimation-shootout.py --dirname orig40
