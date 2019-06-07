@@ -6,14 +6,14 @@ clean:
 MLE: 
 	ln -s ../MLE .
 
-ciorig40: MLE
-	./do-ci-shootout.py --dirname orig40
+learningshootoutorig40: MLE
+	./do-learning-shootout.py --dirname orig40
 
-cigt10class: MLE
-	./do-ci-shootout.py --dirname gt10class
+learningshootoutgt10class: MLE
+	./do-learning-shootout.py --dirname gt10class
 
-mlegt10class: MLE
-	./do-ci-shootout.py --dirname gt10class --challenger mle
+learningshootoutmlegt10class: MLE
+	./do-learning-shootout.py --dirname gt10class --challenger mle
 
 estimationshootout: MLE
 	./do-estimation-shootout.py --dirname orig40
