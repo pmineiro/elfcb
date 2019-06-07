@@ -5,7 +5,7 @@ Empirical Likelihood for Contextual Bandits
 
 * [estimate.ipynb](estimate.ipynb): MLE on synthetic data (Figure 2 of the paper)
 * [ci.ipynb](ci.ipynb): CI on synthetic data (Figure 1 and Figure 3 of the paper)
-* [shootout](shootout): Generates contents of Tables 1, 3, 4 and 5.
+* [shootout](shootout): Generate contents of Tables 1, 3, 4 and 5.
 
 ## Setting up the Python Environment
 
