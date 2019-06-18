@@ -108,28 +108,28 @@ class Online:
         def dual(p, sign, betamle, delta, num, datagen):
             from math import exp
 
-            beta, gamma = p
+            gamma, beta = p
             logcost = -delta
     
             n = 0
             for c, w, r in datagen():
                 if c > 0:
                     n += c
-                    denom = beta + gamma * w + sign * w * r
+                    denom = gamma + beta * w + sign * w * r
                     mledenom = betamle * (w - 1) + num
                     logcost += c * (Online.CI.logstar(denom) - Online.CI.logstar(mledenom))
     
             if n > 0:
                 logcost /= n
     
-            return -exp(logcost) + beta / n + gamma / n
+            return -exp(logcost) + gamma / n + beta / n
 
         @staticmethod
         def jacdual(p, sign, betamle, delta, num, datagen):
             from math import exp
             import numpy as np
 
-            beta, gamma = p
+            gamma, beta = p
             logcost = -delta
             jac = np.zeros_like(p)
 
@@ -137,7 +137,7 @@ class Online:
             for c, w, r in datagen():
                 if c > 0:
                     n += c
-                    denom = beta + gamma * w + sign * w * r
+                    denom = gamma + beta * w + sign * w * r
                     mledenom = betamle * (w - 1) + num
                     logcost += c * (Online.CI.logstar(denom) - Online.CI.logstar(mledenom))
                     jaclogcost = c * Online.CI.jaclogstar(denom)
@@ -159,7 +159,7 @@ class Online:
             from math import exp
             import numpy as np
 
-            beta, gamma = p
+            gamma, beta = p
             logcost = -delta
             jac = np.zeros_like(p)
             hess = np.zeros((2,2))
@@ -168,7 +168,7 @@ class Online:
             for c, w, r in datagen():
                 if c > 0:
                     n += c
-                    denom = beta + gamma * w + sign * w * r
+                    denom = gamma + beta * w + sign * w * r
                     mledenom = betamle * (w - 1) + num
                     logcost += c * (Online.CI.logstar(denom) - Online.CI.logstar(mledenom))
                     jaclogcost = c * Online.CI.jaclogstar(denom)
@@ -195,7 +195,7 @@ class Online:
         def sumstats(p, sign, betamle, delta, num, datagen):
             from math import exp
 
-            beta, gamma = p
+            gamma, beta = p
             logcost = -delta
     
             sumofone = 0
@@ -206,7 +206,7 @@ class Online:
             for c, w, r in datagen():
                 if c > 0:
                     n += c
-                    denom = beta + gamma * w + sign * w * r
+                    denom = gamma + beta * w + sign * w * r
                     mledenom = betamle * (w - 1) + num
                     logcost += c * (Online.CI.logstar(denom) - Online.CI.logstar(mledenom))
     
@@ -244,6 +244,7 @@ class Online:
             self.alpha = alpha
             self.mle = Online.MLE(wmin, wmax)
             self.n = 0
+            self.stats = None
 
         def update(self, datagen):
             from .sqp import sqp
@@ -252,7 +253,7 @@ class Online:
             betastar = self.mle.update(datagen)
             self.n = sum(c for c, _, _ in datagen())
 
-            if self.n >= 2:
+            if self.n >= 3:
                 delta = f.isf(q=self.alpha, dfn=1, dfd=self.n-1)
                 _, self.duals = sqp(
                         f=lambda p: Online.CI.dual(p, 1, betastar, delta, self.n, datagen),
@@ -264,14 +265,49 @@ class Online:
                         strict=True,
                         maxiter=1
                 )
+                self.stats = Online.CI.sumstats(
+                        self.duals, 
+                        1, 
+                        self.mle.betastar * self.mle.n,
+                        delta,
+                        self.n,
+                        datagen
+                )
 
-        def getstats(self, datagen):
+
+        def getduals(self, datagen):
             from scipy.stats import f
-            delta = f.isf(q=self.alpha, dfn=1, dfd=self.n-1)
 
-            return Online.CI.sumstats(self.duals, 
-                                      1, 
-                                      self.mle.betastar * self.mle.n,
-                                      delta,
-                                      self.n,
-                                      datagen)
+            if self.stats is not None:
+                gamma = self.duals[0]
+                beta = self.duals[1]
+                kappa = self.stats[3]
+                return { 
+                    'qfunc': lambda c, w, r: (
+                        c * kappa / (gamma + beta * w + w * r)
+                    ),
+                    'extra': {
+                        'gamma': self.duals[0],
+                        'beta': self.duals[1],
+                        'kappa': self.stats[3],
+                        'sumofone': self.stats[0],
+                        'sumofw': self.stats[1],
+                        'sumofwr': self.stats[2],
+                        'betamlestar': self.mle.betastar,
+                        'ci': True,
+                    },
+                }
+            else:
+                beta = self.mle.betastar
+                n = self.mle.n
+                return { 
+                    'qfunc': lambda c, w, r: (
+                     (c / n) / (beta * (w - 1) + 1)
+                    ),
+                    'extra': {
+                       'beta': beta,
+                       'n': n,
+                       'ci': False
+                    },
+                }
+
