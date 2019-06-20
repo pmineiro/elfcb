@@ -183,7 +183,7 @@ def learn_pi(data, actionseed, solver, passes):
             
             if stage == 'policy':
                 alldatums.reverse()
-                solver.learn(alldatums)
+                solver.learn([ (w, r) for (w, cost, r) in alldatums])
 
             for i, line in enumerate(data, 1):
                 if "|" not in line: continue
@@ -212,10 +212,11 @@ def learn_pi(data, actionseed, solver, passes):
                 del ex
                 
                 if stage == 'dual':
-                    alldatums.append((iw, cost))
+                    reward = 1 if 1+action == label else 0
+                    alldatums.append((iw, cost, reward))
                 else:
-                    datum = alldatums.pop()
-                    modifiediw = solver.infer(datum)
+                    w, cost, r = alldatums.pop()
+                    modifiediw = solver.infer((w, r))
                     importance_weighted_learn(vw, action, cost, logprobs[action], modifiediw, rest) 
 
     del vw
