@@ -1,5 +1,5 @@
 # elfcb
-Empirical Likelihood for Contextual Bandits
+Code to reproduce the results in the paper [Empirical Likelihood for Contextual Bandits](https://arxiv.org/abs/1906.03323)
 
 ## Manifest
 
