@@ -1,7 +1,6 @@
 # See JohnStyleProfile.ipynb for derivation, implementation notes, and test
 def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
-                                 rmin=0, rmax=1, raiseonerr=False,
-                                 warmstart=None):
+                                 rmin=0, rmax=1, raiseonerr=False):
     from scipy.optimize import nnls
     from scipy.special import xlogy
     from scipy.stats import f
@@ -181,11 +180,7 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
                      ],
                      dtype='float64')
 
-        if warmstart is None:
-            gamma0, beta0 = 1.0, 0.5
-        else:
-            gamma0 = warmstart[what].get('gammastar', 1.0)
-            beta0 = warmstart[what].get('betastar', 0.5)
+        gamma0, beta0 = 1.0, 0.5
 
         fstar, [ gammastar, betastar ] = sqp(
                 f=lambda p: dualobjective(p, sign),

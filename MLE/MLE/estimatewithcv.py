@@ -2,8 +2,8 @@
 def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr=False):
     import numpy as np
     from scipy.special import xlogy
-#    from .gradcheck import gradcheck, hesscheck
     from .sqp import sqp
+#    from .gradcheck import gradcheck, hesscheck
     
     assert wmin >= 0
     assert wmin < 1
@@ -51,7 +51,7 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
             if c > 0:
                 n += c
                 nicecvs = cvs / cvscale
-                denom = num + p[0] * (w - 1) / wmax + np.dot(p[1:], nicecvs)
+                denom = num*(1 + p[0] * (w - 1) / wmax + np.dot(p[1:], nicecvs))
                 cost -= c * logstar(denom) 
 
         assert n == num
@@ -68,12 +68,10 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
         for c, w, r, cvs in datagen():
             if c > 0:
                 nicecvs = cvs / cvscale
-                denom = num + p[0] * (w - 1) / wmax + np.dot(p[1:], nicecvs)
+                denom = num*(1 + p[0] * (w - 1) / wmax + np.dot(p[1:], nicecvs))
                 jacdenom = c * jaclogstar(denom)
                 jac[0] -= (w - 1) * jacdenom / wmax
                 jac[1:] -= jacdenom * nicecvs
-
-        jac /= num
 
         return jac
 
@@ -84,16 +82,16 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
         for c, w, r, cvs in datagen():
             if c > 0:
                 nicecvs = cvs / cvscale
-                denom = num + p[0] * (w - 1) / wmax + np.dot(p[1:], nicecvs)
+                denom = num*(1 + p[0] * (w - 1) / wmax + np.dot(p[1:], nicecvs))
                 hessdenom = c * hesslogstar(denom)
                 coeffs = np.hstack(( (w - 1) / wmax, nicecvs ))
                 hess -= hessdenom * np.outer(coeffs, coeffs)
 
-        hess /= num
+        hess *= num
 
         return hess
 
-    x0 = [ num / wmax ] + [ num / x for x in cvscale ]
+    x0 = [ 1.0 ] + [ 1.0 / (i + 1) for i, _ in enumerate(cvscale) ]
 
 #    gradcheck(f=dualobjective,
 #              jac=jacdualobjective,
@@ -110,7 +108,7 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
         for w in (wmin, wmax)
         for bitvec in bitgen(cvmin, cvmax)
     ])
-    d = np.array([ -num
+    d = np.array([ -1
                    for w in (wmin, wmax)
                    for bitvec in bitgen(cvmin, cvmax)
                  ])
@@ -128,7 +126,7 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
     for c, w, r, cvs in datagen():
         if c > 0:
             nicecvs = cvs / cvscale
-            denom = num + xstar[0] * (w - 1) / wmax + np.dot(xstar[1:], nicecvs)
+            denom = num * (1 + xstar[0] * (w - 1) / wmax + np.dot(xstar[1:], nicecvs))
             q = c / denom
             vhat += q * w * r
             rawsumofw += q * w
@@ -146,15 +144,16 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
     vmax = vhat + max(0.0, 1.0 - rawsumofw) * rmax
     vhat += max(0.0, 1.0 - rawsumofw) * (rmax - rmin) / 2.0
 
-    qstar = lambda c, w, r, cvs: c / (num + xstar[0] * (w - 1) / wmax + np.dot(xstar[1:], cvs / cvscale))
+    qstar = lambda c, w, r, cvs: c / (num * (1 + xstar[0] * (w - 1) / wmax + np.dot(xstar[1:], cvs / cvscale)))
 
     from scipy.special import xlogy
 
     return vhat, {
         'vmin': vmin,
         'vmax': vmax,
-        'gamma': xstar[0] / wmax,
-        'delta': xstar[1:] / cvscale,
+        'gammastar': xstar[0] * (num / wmax),
+        'deltastar': xstar[1:] * (num / cvscale),
+        # TODO: don't materialize
         'qstar': { (w, r, tuple(cvs)): qstar(c, w, r, cvs) for c, w, r, cvs in datagen() },
         'likelihood': sum(xlogy(c/num, qstar(c, w, r, cvs)) for c, w, r, cvs in datagen()),
         'rawsumofw': rawsumofw
