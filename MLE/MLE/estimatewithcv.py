@@ -2,6 +2,7 @@
 def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr=False):
     import numpy as np
     from scipy.special import xlogy
+    from .estimate import estimate
     from .sqp import sqp
 #    from .gradcheck import gradcheck, hesscheck
     
@@ -25,7 +26,10 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
         length = len(minv)
         yield from bitgenhelp([None]*length, minv, maxv, 0, length) 
 
-    num = sum(c for c, _, _, _ in datagen())
+
+    vhat, qmle = estimate(datagen=lambda: ((c, w, r) for c, w, r, _ in datagen()), wmin=wmin, wmax=wmax, rmin=rmin, rmax=rmax, raiseonerr=raiseonerr)
+
+    num = qmle['num']
     assert num >= 1
 
     cvscale = np.maximum(1, np.maximum(np.abs(cvmin), np.abs(cvmax)))
@@ -91,7 +95,8 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
 
         return hess
 
-    x0 = [ 1.0 ] + [ 1.0 / (i + 1) for i, _ in enumerate(cvscale) ]
+
+    x0 = [ qmle['betastar'] * wmax / num ] + [ 0.0 for i, _ in enumerate(cvscale) ]
 
 #    gradcheck(f=dualobjective,
 #              jac=jacdualobjective,
@@ -104,7 +109,7 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
 #              what='jacdualobjective')
 
     consE = np.array([
-        np.hstack(([ (w - 1) / wmax ], bitvec / cvscale))
+        np.hstack(((w - 1) / wmax, bitvec / cvscale))
         for w in (wmin, wmax)
         for bitvec in bitgen(cvmin, cvmax)
     ])
@@ -119,7 +124,7 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
                        consE,
                        d,
                        x0,
-                       strict=True)
+                       condfac=1e-2)
 
     vhat = 0
     rawsumofw = 0
@@ -144,17 +149,16 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
     vmax = vhat + max(0.0, 1.0 - rawsumofw) * rmax
     vhat += max(0.0, 1.0 - rawsumofw) * (rmax - rmin) / 2.0
 
-    qstar = lambda c, w, r, cvs: c / (num * (1 + xstar[0] * (w - 1) / wmax + np.dot(xstar[1:], cvs / cvscale)))
+    qfunc = lambda c, w, r, cvs: c / (num * (1 + xstar[0] * (w - 1) / wmax + np.dot(xstar[1:], cvs / cvscale)))
 
     from scipy.special import xlogy
 
     return vhat, {
         'vmin': vmin,
         'vmax': vmax,
+        'num': num,
         'gammastar': xstar[0] * (num / wmax),
         'deltastar': xstar[1:] * (num / cvscale),
-        # TODO: don't materialize
-        'qstar': { (w, r, tuple(cvs)): qstar(c, w, r, cvs) for c, w, r, cvs in datagen() },
-        'likelihood': sum(xlogy(c/num, qstar(c, w, r, cvs)) for c, w, r, cvs in datagen()),
+        'qfunc': qfunc,
         'rawsumofw': rawsumofw
     }
