@@ -3,7 +3,6 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
     import numpy as np
     from scipy.special import xlogy
     from .estimate import estimate
-    from .sqp import sqp
 #    from .gradcheck import gradcheck, hesscheck
     
     assert wmin >= 0
@@ -118,13 +117,25 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
                    for bitvec in bitgen(cvmin, cvmax)
                  ])
 
-    fstar, xstar = sqp(dualobjective,
-                       jacdualobjective,
-                       hessdualobjective,
-                       consE,
-                       d,
-                       x0,
-                       condfac=1e-2)
+    from scipy.optimize import minimize
+    optresult = minimize(fun=dualobjective,
+                         x0=x0,
+                         jac=jacdualobjective,
+                         #hess=hessdualobjective,
+                         constraints=[{
+                             'type': 'ineq',
+                             'fun': lambda x: consE.dot(x) - d,
+                             'jac': lambda x: consE
+                         }],
+                         method='slsqp',
+                         options={
+                            'ftol': 1e-12,
+                            'maxiter': 1000,
+                         })
+    from pprint import pformat
+    assert optresult.success, pformat(optresult)
+
+    fstar, xstar = optresult.fun, optresult.x
 
     vhat = 0
     rawsumofw = 0
@@ -138,8 +149,8 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
 
     if raiseonerr:
         from pprint import pformat
-        assert (rawsumofw <= 1.0 + 1e-6 and 
-                np.all(consE.dot(xstar) >= d - 1e-6)
+        assert (rawsumofw <= 1.0 + 1e-4 and
+                np.all(consE.dot(xstar) >= d - 1e-4)
                ), pformat({
                    'rawsumofw': rawsumofw,
                    'consE.dot(xstar) - d': consE.dot(xstar) - d,
