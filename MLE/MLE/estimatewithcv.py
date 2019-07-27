@@ -159,7 +159,9 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
     vmax = vhat + max(0.0, 1.0 - rawsumofw) * rmax
     vhat += max(0.0, 1.0 - rawsumofw) * (rmax - rmin) / 2.0
 
-    qfunc = lambda c, w, r, cvs: c / (num * (1 + xstar[0] * (w - 1) / wmax + np.dot(xstar[1:], cvs / cvscale)))
+    betastar = xstar[0] * (num / wmax),
+    deltastar = xstar[1:] * (num / cvscale),
+    qfunc = lambda c, w, r, cvs: c / (num + betastar * (w - 1) + np.dot(deltastar, cvs))
 
     from scipy.special import xlogy
 
@@ -167,8 +169,8 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
         'vmin': vmin,
         'vmax': vmax,
         'num': num,
-        'gammastar': xstar[0] * (num / wmax),
-        'deltastar': xstar[1:] * (num / cvscale),
+        'betastar': betastar,
+        'deltastar': deltastar,
         'qfunc': qfunc,
         'rawsumofw': rawsumofw
     }

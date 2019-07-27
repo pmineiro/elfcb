@@ -113,5 +113,5 @@ def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=Fal
             'vmin': vmin,
             'vmax': vmax,
             'num': num,
-            'qfunc': lambda c, w, r: c/(betastar*(w-1)+num),
+            'qfunc': lambda c, w, r: c / (num + betastar * (w - 1)),
            }
