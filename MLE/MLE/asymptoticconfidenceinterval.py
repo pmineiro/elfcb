@@ -1,11 +1,9 @@
 # See JohnStyleProfile.ipynb for derivation, implementation notes, and test
 def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
                                  rmin=0, rmax=1, raiseonerr=False):
-    from scipy.optimize import nnls
     from scipy.special import xlogy
     from scipy.stats import f
     from .estimate import estimate
-    from .sqp import sqp
     from math import exp, log
     import numpy as np
 
@@ -22,6 +20,8 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
     betamle = qmle['betastar']
 
     delta = 0.5 * f.isf(q=alpha, dfn=1, dfd=num-1)
+
+    rscale = max(1.0, np.abs(rmin), np.abs(rmax))
 
     # solve dual
 
@@ -48,14 +48,16 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
         for c, w, r in datagen():
             if c > 0:
                 n += c
-                denom = gamma + beta * w + sign * w * r
+                denom = gamma + (beta + sign * wmax * r) * (w / wmax)
                 mledenom = betamle * (w - 1) + num
                 logcost += c * (logstar(denom) - logstar(mledenom))
+
+        assert n == num
 
         if n > 0:
             logcost /= n
 
-        return -exp(logcost) + gamma / n + beta / n
+        return (-n * exp(logcost) + gamma + beta / wmax) / rscale
 
     def jacdualobjective(p, sign):
         gamma, beta = p
@@ -66,20 +68,22 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
         for c, w, r in datagen():
             if c > 0:
                 n += c
-                denom = gamma + beta * w + sign * w * r
+                denom = gamma + (beta + sign * wmax * r) * (w / wmax)
                 mledenom = betamle * (w - 1) + num
                 logcost += c * (logstar(denom) - logstar(mledenom))
                 jaclogcost = c * jaclogstar(denom)
                 jac[0] += jaclogcost
-                jac[1] += w * jaclogcost
+                jac[1] += jaclogcost * (w / wmax)
+
+        assert n == num
 
         if n > 0:
             logcost /= n
             jac /= n
 
-        jac *= -exp(logcost)
-        jac[0] += 1/n
-        jac[1] += 1/n
+        jac *= -(n / rscale) * exp(logcost)
+        jac[0] += 1 / rscale
+        jac[1] += 1 / (wmax * rscale)
 
         return jac
 
@@ -93,17 +97,19 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
         for c, w, r in datagen():
             if c > 0:
                 n += c
-                denom = gamma + beta * w + sign * w * r
+                denom = gamma + (beta + sign * wmax * r) * (w / wmax)
                 mledenom = betamle * (w - 1) + num
                 logcost += c * (logstar(denom) - logstar(mledenom))
                 jaclogcost = c * jaclogstar(denom)
                 jac[0] += jaclogcost
-                jac[1] += w * jaclogcost
+                jac[1] += jaclogcost * (w / wmax)
 
                 hesslogcost = c * hesslogstar(denom)
                 hess[0][0] += hesslogcost
-                hess[0][1] += w * hesslogcost
-                hess[1][1] += w * w * hesslogcost
+                hess[0][1] += hesslogcost * (w / wmax)
+                hess[1][1] += hesslogcost * (w / wmax) * (w / wmax)
+
+        assert n == num
 
         if n > 0:
             logcost /= n
@@ -112,54 +118,12 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
 
         hess[1][0] = hess[0][1]
         hess += np.outer(jac, jac)
-        hess *= -exp(logcost)
+        hess *= -(n / rscale) * exp(logcost)
 
         return hess
 
-    def sumstats(p, sign):
-        gamma, beta = p
-        logcost = -delta
-
-        sumofone = 0
-        sumofw = 0
-        sumofwr = 0
-        n = 0
-        total = 0
-        for c, w, r in datagen():
-            if c > 0:
-                n += c
-                denom = gamma + beta * w + sign * w * r
-                mledenom = betamle * (w - 1) + num
-                logcost += c * (logstar(denom) - logstar(mledenom))
-
-                safe = safedenom(denom)
-
-                try:
-                    sumofone += c / safe
-                    sumofw += c*w / safe
-                    sumofwr += c*w*r / safe
-                except Exception as e:
-                    from pprint import pformat
-                    print(pformat({
-                        'e': e,
-                        'denom': denom,
-                        'safedenom': safe,
-                        'consE(p)-d': consE.dot(p)-d,
-                    }))
-                    raise
-
-        if n > 0:
-            logcost /= n
-
-        kappa = exp(logcost)
-        sumofone *= kappa
-        sumofw *= kappa
-        sumofwr *= kappa
-
-        return sumofone, sumofw, sumofwr, kappa
-
     consE = np.array([
-        [ 1/max(w, 1), min(w, 1) ]
+        [ 1, w / wmax ]
         for w in (wmin, wmax)
         for r in (rmin, rmax)
     ], dtype='float64')
@@ -174,15 +138,58 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
             continue
 
         sign = 1 - 2 * what
-        d = np.array([ -sign*min(w, 1)*r  + tiny/max(w, 1)
+        d = np.array([ -sign*w*r  + tiny
                        for w in (wmin, wmax)
                        for r in (rmin, rmax)
                      ],
                      dtype='float64')
 
-        gamma0, beta0 = 1.0, 0.5
+        minsr = min(sign*rmin, sign*rmax)
+        gamma0, beta0 = ( (num - qmle['betastar']) + 2 * tiny,
+                          wmax * (qmle['betastar'] - (1 + 1 / wmax) * minsr)
+                        )
 
-        fstar, [ gammastar, betastar ] = sqp(
+#        from .gradcheck import gradcheck, hesscheck
+#        gradcheck(f=lambda p: dualobjective(p, sign),
+#                  jac=lambda p: jacdualobjective(p, sign),
+#                  x=[gamma0, beta0],
+#                  what='dualobjective')
+#
+#        hesscheck(jac=lambda p: jacdualobjective(p, sign),
+#                  hess=lambda p: hessdualobjective(p, sign),
+#                  x=[gamma0, beta0],
+#                  what='jacdualobjective')
+
+#        # ipopt is tyically slower than sqp
+#        # for low-dimensional problems
+#        # but ipopt is _very_ reliable
+#
+#        from ipopt import minimize_ipopt
+#        optresult = minimize_ipopt(
+#                             fun=dualobjective,
+#                             x0=[gamma0, beta0],
+#                             args=(sign,),
+#                             jac=jacdualobjective,
+#                             #hess=hessdualobjective,
+#                             constraints=[{
+#                                 'type': 'ineq',
+#                                 'fun': lambda x: consE.dot(x) - d,
+#                                 'jac': lambda x: consE
+#                             }],
+#                             options={
+#                                #'ftol': 1e-12,
+#                                'tol': 1e-12,
+#                                'maxiter': 1000,
+#                             },
+#                    )
+#        if raiseonerr:
+#            from pprint import pformat
+#            assert optresult.success, pformat(optresult)
+#
+#        fstar, xstar = optresult.fun, optresult.x
+
+        from .sqp import sqp
+        fstar, xstar = sqp(
                 f=lambda p: dualobjective(p, sign),
                 gradf=lambda p: jacdualobjective(p, sign),
                 hessf=lambda p: hessdualobjective(p, sign),
@@ -190,45 +197,23 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
                 d=d,
                 x0=[ gamma0, beta0 ],
                 strict=True,
-                abscondfac=1e-12,
         )
 
-        x = [ gammastar, betastar ]
+        kappastar = (-rscale * fstar + xstar[0] + xstar[1] / wmax) / num
+        gammastar = xstar[0]
+        betastar = xstar[1] / wmax
 
-        # recover primal
+        qfunc = lambda c, w, r, kappa=kappastar, gamma=gammastar, beta=betastar, s=sign: kappa * c / (gamma + (beta + s * r) * w)
 
-        sumone, sumw, sumwr, kappastar = sumstats(x, sign)
-
-        remone = 1 - sumone
-        remw = 1 - sumw
-
-        if remone >= 0 and remw >= 0:
-            A = np.array([ [ 1, w ] for w in (wmin, wmax) ])
-            b = np.array([ remone, remw ])
-
-            qexlst, _ = nnls(A.T, b)
-            rmissing = rmin if sign > 0 else rmax
-
-            qex = { (w, rmissing): v for w, v in zip((wmin, wmax), qexlst) }
-        else:
-            qex = {}
-
-        sumone += sum(q for _, q in qex.items())
-        sumw += sum(w*q for (w, _), q in qex.items())
-        sumwr += sum(w*r*q for (w, r), q in qex.items())
+        vbound = -sign * rscale * fstar
 
         retvals.append(
-           (sumwr,
+           (vbound,
             {
-                'remone': remone,
-                'remw': remw,
-                'sumone': sumone,
-                'sumw': sumw,
                 'gammastar': gammastar,
                 'betastar': betastar,
                 'kappastar': kappastar,
-                'qex': qex,
-                'qfunc': lambda c, w, r: kappastar * c / (gammastar + betastar * w + sign * w * r)
+                'qfunc': qfunc,
             })
         )
 
