@@ -1,9 +1,9 @@
 # See estimate.ipynb for derivation, implementation notes, and test
 def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr=False):
     import numpy as np
+    from scipy.optimize import minimize
     from scipy.special import xlogy
     from .estimate import estimate
-#    from .gradcheck import gradcheck, hesscheck
     
     assert wmin >= 0
     assert wmin < 1
@@ -97,6 +97,7 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
 
     x0 = [ qmle['betastar'] * wmax / num ] + [ 0.0 for i, _ in enumerate(cvscale) ]
 
+#    from .gradcheck import gradcheck, hesscheck
 #    gradcheck(f=dualobjective,
 #              jac=jacdualobjective,
 #              x=x0,
@@ -117,7 +118,6 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
                    for bitvec in bitgen(cvmin, cvmax)
                  ])
 
-    from scipy.optimize import minimize
     optresult = minimize(fun=dualobjective,
                          x0=x0,
                          jac=jacdualobjective,
@@ -132,9 +132,6 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
                             'ftol': 1e-12,
                             'maxiter': 1000,
                          })
-    from pprint import pformat
-    assert optresult.success, pformat(optresult)
-
     fstar, xstar = optresult.fun, optresult.x
 
     vhat = 0
@@ -149,9 +146,11 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
 
     if raiseonerr:
         from pprint import pformat
-        assert (rawsumofw <= 1.0 + 1e-4 and
+        assert (optresult.success and
+                rawsumofw <= 1.0 + 1e-4 and
                 np.all(consE.dot(xstar) >= d - 1e-4)
                ), pformat({
+                   'optresult': optresult,
                    'rawsumofw': rawsumofw,
                    'consE.dot(xstar) - d': consE.dot(xstar) - d,
                })

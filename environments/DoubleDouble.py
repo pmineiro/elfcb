@@ -9,7 +9,7 @@ class DoubleDouble:
         
     def range(self):
         (wmin, wmax) = self.env.range()
-        return wmin, wmax, (wmin-1)*numpy.ones(self.numactions), (wmax-1)*numpy.ones(self.numactions)
+        return wmin, wmax, (wmin-1)*numpy.ones(self.numactions-1), (wmax-1)*numpy.ones(self.numactions-1)
         
     def rawsample(self, ndata):
         from collections import Counter
@@ -43,6 +43,7 @@ class DoubleDouble:
         for c, w, r, pia in data:
             cvs = tuple(
                        w - 1 if a == pia else 0 for a in range(self.numactions)
+                       if a > 0
             )
             nicedata.update({ (w, r, cvs): c})
 
