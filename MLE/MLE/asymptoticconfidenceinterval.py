@@ -19,7 +19,7 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
         return ((rmin, rmax), (None, None))
     betamle = qmle['betastar']
 
-    delta = 0.5 * f.isf(q=alpha, dfn=1, dfd=num-1)
+    Delta = 0.5 * f.isf(q=alpha, dfn=1, dfd=num-1)
 
     rscale = max(1.0, np.abs(rmin), np.abs(rmax))
 
@@ -42,7 +42,7 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
 
     def dualobjective(p, sign):
         gamma, beta = p
-        logcost = -delta
+        logcost = -Delta
 
         n = 0
         for c, w, r in datagen():
@@ -61,7 +61,7 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
 
     def jacdualobjective(p, sign):
         gamma, beta = p
-        logcost = -delta
+        logcost = -Delta
         jac = np.zeros_like(p)
 
         n = 0
@@ -71,6 +71,7 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
                 denom = gamma + (beta + sign * wmax * r) * (w / wmax)
                 mledenom = betamle * (w - 1) + num
                 logcost += c * (logstar(denom) - logstar(mledenom))
+
                 jaclogcost = c * jaclogstar(denom)
                 jac[0] += jaclogcost
                 jac[1] += jaclogcost * (w / wmax)
@@ -89,7 +90,7 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
 
     def hessdualobjective(p, sign):
         gamma, beta = p
-        logcost = -delta
+        logcost = -Delta
         jac = np.zeros_like(p)
         hess = np.zeros((2,2))
 
@@ -100,6 +101,7 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
                 denom = gamma + (beta + sign * wmax * r) * (w / wmax)
                 mledenom = betamle * (w - 1) + num
                 logcost += c * (logstar(denom) - logstar(mledenom))
+
                 jaclogcost = c * jaclogstar(denom)
                 jac[0] += jaclogcost
                 jac[1] += jaclogcost * (w / wmax)
