@@ -49,7 +49,7 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
             if c > 0:
                 n += c
                 denom = gamma + (beta + sign * wmax * r) * (w / wmax)
-                mledenom = betamle * (w - 1) + num
+                mledenom = num + betamle * (w - 1)
                 logcost += c * (logstar(denom) - logstar(mledenom))
 
         assert n == num
@@ -69,7 +69,7 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
             if c > 0:
                 n += c
                 denom = gamma + (beta + sign * wmax * r) * (w / wmax)
-                mledenom = betamle * (w - 1) + num
+                mledenom = num + betamle * (w - 1)
                 logcost += c * (logstar(denom) - logstar(mledenom))
 
                 jaclogcost = c * jaclogstar(denom)
@@ -99,7 +99,7 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
             if c > 0:
                 n += c
                 denom = gamma + (beta + sign * wmax * r) * (w / wmax)
-                mledenom = betamle * (w - 1) + num
+                mledenom = num + betamle * (w - 1)
                 logcost += c * (logstar(denom) - logstar(mledenom))
 
                 jaclogcost = c * jaclogstar(denom)
