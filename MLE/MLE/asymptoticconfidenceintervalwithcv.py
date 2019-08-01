@@ -43,7 +43,19 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
 
     Delta = 0.5 * f.isf(q=alpha, dfn=1, dfd=num-1)
 
-    cvscale = np.maximum(1, np.maximum(np.abs(cvmin), np.abs(cvmax)))
+    sumwsq = 0
+    sumcvsq = np.zeros_like(cvmax)
+    n = 0
+    for c, w, r, cvs in datagen():
+        if c > 0:
+            sumwsq += c * (w - 1) * (w - 1)
+            sumcvsq += c * np.square(cvs)
+            n += c
+
+    assert n == num
+
+    wscale = max(1, np.sqrt(sumwsq / n))
+    cvscale = np.maximum(1, np.sqrt(sumcvsq / n))
     rscale = max(1.0, np.abs(rmin), np.abs(rmax))
 
     # solve dual
@@ -72,7 +84,7 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
             if c > 0:
                 n += c
                 nicecvs = cvs / cvscale
-                denom = gamma + (beta + sign * wmax * r) * (w / wmax) + np.dot(p[2:], nicecvs)
+                denom = gamma + (beta + sign * wscale * r) * (w / wscale) + np.dot(p[2:], nicecvs)
                 mledenom = num + betamle * (w - 1) + np.dot(deltamle, cvs)
                 logcost += c * (logstar(denom) - logstar(mledenom))
 
@@ -81,7 +93,7 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
         if n > 0:
             logcost /= n
 
-        return (-n * exp(logcost) + gamma + beta / wmax) / rscale
+        return (-n * exp(logcost) + gamma + beta / wscale) / rscale
 
     def jacdualobjective(p, sign):
         gamma, beta = p[0:2]
@@ -93,13 +105,13 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
             if c > 0:
                 n += c
                 nicecvs = cvs / cvscale
-                denom = gamma + (beta + sign * wmax * r) * (w / wmax) + np.dot(p[2:], nicecvs)
+                denom = gamma + (beta + sign * wscale * r) * (w / wscale) + np.dot(p[2:], nicecvs)
                 mledenom = num + betamle * (w - 1) + np.dot(deltamle, cvs)
                 logcost += c * (logstar(denom) - logstar(mledenom))
 
                 jaclogcost = c * jaclogstar(denom)
                 jac[0] += jaclogcost
-                jac[1] += jaclogcost * (w / wmax)
+                jac[1] += jaclogcost * (w / wscale)
                 jac[2:] += jaclogcost * nicecvs
 
         assert n == num
@@ -110,7 +122,7 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
 
         jac *= -(n / rscale) * exp(logcost)
         jac[0] += 1 / rscale
-        jac[1] += 1 / (wmax * rscale)
+        jac[1] += 1 / (wscale * rscale)
 
         return jac
 
@@ -126,17 +138,17 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
             if c > 0:
                 n += c
                 nicecvs = cvs / cvscale
-                denom = gamma + (beta + sign * wmax * r) * (w / wmax) + np.dot(p[2:], nicecvs)
+                denom = gamma + (beta + sign * wscale * r) * (w / wscale) + np.dot(p[2:], nicecvs)
                 mledenom = num + betamle * (w - 1) + np.dot(deltamle, cvs)
                 logcost += c * (logstar(denom) - logstar(mledenom))
 
                 jaclogcost = c * jaclogstar(denom)
                 jac[0] += jaclogcost
-                jac[1] += jaclogcost * (w / wmax)
+                jac[1] += jaclogcost * (w / wscale)
                 jac[2:] += jaclogcost * nicecvs
 
                 hesslogcost = c * hesslogstar(denom)
-                coeffs = np.hstack(( 1, w / wmax, nicecvs ))
+                coeffs = np.hstack(( 1, w / wscale, nicecvs ))
                 hess += hesslogcost * np.outer(coeffs, coeffs)
 
         assert n == num
@@ -152,7 +164,7 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
         return hess
 
     consE = np.array([
-        np.hstack(( 1, w  / wmax, bitvec / cvscale ))
+        np.hstack(( 1, w  / wscale, bitvec / cvscale ))
         for w in (wmin, wmax)
         for r in (rmin, rmax)
         for bitvec in bitgen(cvmin, cvmax)
@@ -178,25 +190,26 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
         if qstarnocv[what] is None:
             minsr = min(sign*rmin, sign*rmax)
             x0 = [ (num - qmle['betastar']) + 2 * tiny,
-                   wmax * (qmle['betastar'] - (1 + 1 / wmax) * minsr) ] + [
+                    wscale * (qmle['betastar'] - (1 + 1 / wscale) * minsr) ] + [
                    0.0 for _ in cvscale
                  ]
         else:
             x0 = [ qstarnocv[what]['gammastar'] + 2 * tiny,
-                   wmax * qstarnocv[what]['betastar'] ] + [
+                   wscale * qstarnocv[what]['betastar'] ] + [
                    0.0 for _ in cvscale
                  ]
 
-        active = np.nonzero(consE.dot(x0) - d < 0)[0]
-        from pprint import pformat
-        assert active.size == 0, pformat({
-                'cons': consE.dot(x0) - d,
-                'd': d,
-                'consE.dot(x0)': consE.dot(x0),
-                'active': active,
-                'x0': x0,
-                'qstarnocv[{}]'.format(what): qstarnocv[what],
-            })
+        if raiseonerr:
+           active = np.nonzero(consE.dot(x0) - d < 0)[0]
+           from pprint import pformat
+           assert active.size == 0, pformat({
+                   'cons': consE.dot(x0) - d,
+                   'd': d,
+                   'consE.dot(x0)': consE.dot(x0),
+                   'active': active,
+                   'x0': x0,
+                   'qstarnocv[{}]'.format(what): qstarnocv[what],
+               })
 
 #        from .gradcheck import gradcheck, hesscheck
 #        gradcheck(f=lambda p: dualobjective(p, sign),
@@ -209,46 +222,71 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
 #                  x=x0,
 #                  what='jacdualobjective')
 
+        # NB: things i've tried
+        # slsqp: 10.56s/it, sometimes fails
+        # sqp with cvxopt: 14.81s/it, ...?
+        # cvxopt: 19.72s/it, unknown reliability (probably good)
 
-        # TODO: until my cheesy sqp routine is fixed use slsqp
-        from scipy.optimize import minimize
-        optresult = minimize(method='slsqp',
-                             fun=dualobjective,
-                             x0=x0,
-                             args=(sign,),
-                             jac=jacdualobjective,
-                             #hess=hessdualobjective,
-                             constraints=[{
-                                 'type': 'ineq',
-                                 'fun': lambda x: consE.dot(x) - d,
-                                 'jac': lambda x: consE
-                             }],
-                             options={
-                                'ftol': 1e-12,
-                                'maxiter': 1000,
-                             },
-                    )
-        if raiseonerr:
-            from pprint import pformat
-            assert optresult.success, pformat(optresult)
+#        from scipy.optimize import minimize
+#        optresult = minimize(method='slsqp',
+#                             fun=dualobjective,
+#                             x0=x0,
+#                             args=(sign,),
+#                             jac=jacdualobjective,
+#                             #hess=hessdualobjective,
+#                             constraints=[{
+#                                 'type': 'ineq',
+#                                 'fun': lambda x: consE.dot(x) - d,
+#                                 'jac': lambda x: consE
+#                             }],
+#                             options={
+#                                'ftol': 1e-12,
+#                                'maxiter': 1000,
+#                             },
+#                    )
+#        if raiseonerr:
+#            from pprint import pformat
+#            assert optresult.success, pformat(optresult)
+#
+#        fstar, xstar = optresult.fun, optresult.x
 
-        fstar, xstar = optresult.fun, optresult.x
+        from .sqp import sqp
+        fstar, xstar = sqp(
+                f=lambda p: dualobjective(p, sign),
+                gradf=lambda p: jacdualobjective(p, sign),
+                hessf=lambda p: hessdualobjective(p, sign),
+                E=consE,
+                d=d,
+                x0=x0,
+                strict=True,
+        )
 
-#        # TODO: sometimes just hangs (inside fortan), figure out why
-#        from .sqp import sqp
-#        fstar, xstar = sqp(
-#                f=lambda p: dualobjective(p, sign),
-#                gradf=lambda p: jacdualobjective(p, sign),
-#                hessf=lambda p: hessdualobjective(p, sign),
-#                E=consE,
-#                d=d,
-#                x0=x0,
-#                strict=True,
-#        )
+#        from cvxopt import solvers, matrix
+#        def F(x=None, z=None):
+#            if x is None: return 0, matrix(x0)
+#            p = np.array([ v for v in x ])
+#            f = dualobjective(p, sign)
+#            jf = jacdualobjective(p, sign)
+#            Df = matrix(jf).T
+#            if z is None: return f, Df
+#            hf = z[0] * hessdualobjective(p, sign)
+#            H = matrix(hf, hf.shape)
+#            return f, Df, H
+#
+#        solvers.options['show_progress'] = False
+#        soln = solvers.cp(F,
+#                          G=-matrix(consE, consE.shape),
+#                          h=-matrix(d))
+#        if raiseonerr:
+#            from pprint import pformat
+#            assert soln['status'] == 'optimal', pformat(soln)
+#
+#        xstar = soln['x']
+#        fstar = soln['primal objective']
 
-        kappastar = (-rscale * fstar + xstar[0] + xstar[1] / wmax) / num
+        kappastar = (-rscale * fstar + xstar[0] + xstar[1] / wscale) / num
         gammastar = xstar[0]
-        betastar = xstar[1] / wmax
+        betastar = xstar[1] / wscale
         deltastar = xstar[2:] / cvscale
         vbound = -sign * fstar
 
