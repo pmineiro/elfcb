@@ -1,12 +1,12 @@
 def sqp(f, gradf, hessf, E, d, x0,
-        gtol=1e-14, ftol=1e-14, xtol=1e-14, condfac=1e-6,
-        abscondfac=0, strict=False, maxiter=10000):
+        gtol=1e-14, ftol=1e-14, xtol=1e-14, feastol=1e-6,
+        condfac=1e-6, abscondfac=0, strict=False, maxiter=10000):
     import numpy
-    from quadprog import solve_qp
+    from scipy.linalg import null_space
     
     x = numpy.array(x0, dtype='float64')
-    cons = E.dot(x) - d
-    active = numpy.nonzero(cons < 0)[0]
+    violation = d - E.dot(x)
+    active = numpy.nonzero(violation >= feastol)[0]
     
     # find feasible point
     if active.size > 0:
@@ -18,29 +18,38 @@ def sqp(f, gradf, hessf, E, d, x0,
         b = numpy.hstack((numpy.zeros_like(x), d[active] - EA.dot(x)))
         dxlmult = numpy.linalg.lstsq(A, b, rcond=None)[0]
         dx = dxlmult[0:len(x)]
-        lmult = dxlmult[len(x):]
+        #lmult = dxlmult[len(x):]
         x += dx
     
     fx = f(x)
     for iter in range(maxiter):
-        Q = hessf(x)
         c = gradf(x)
+        violation = d - E.dot(x)
+        active = numpy.nonzero(violation >= feastol)[0]
 
-        if numpy.linalg.norm(c) < gtol:
+        if active.size > 0:
+            ns = null_space(E[active, :])
+            nullc = ns.T.dot(c)
+        else:
+            nullc = c
+
+        if numpy.linalg.norm(nullc) < gtol:
             break
 
-        violation = d - E.dot(x)
-
         try:
+            Q = hessf(x)
             eigs = numpy.linalg.eigvalsh(Q)
             mineig = numpy.min(eigs)
             maxeig = numpy.max(eigs)
             targetmineig = max(abscondfac, condfac*maxeig)
             perturb = max(0, targetmineig - mineig)
-            dx = solve_qp(Q + perturb*numpy.eye(Q.shape[0]),
-                          -c,
-                          E.T,
-                          violation)[0]
+            niceQ = Q + perturb*numpy.eye(Q.shape[0])
+            from cvxopt import matrix, solvers
+            solvers.options['show_progress'] = False
+            soln=solvers.qp(matrix(niceQ), matrix(c), -matrix(E), -matrix(violation))
+            dx=numpy.array([v for v in soln['x']])
+#            from quadprog import solve_qp
+#            dx = solve_qp(niceQ, -c, E.T, violation)[0]
         except:
             from pprint import pformat
             print(pformat({ 'eigh(Q)': numpy.linalg.eigh(Q),
