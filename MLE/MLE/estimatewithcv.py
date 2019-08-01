@@ -1,8 +1,6 @@
 # See estimate.ipynb for derivation, implementation notes, and test
 def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr=False):
     import numpy as np
-    from scipy.optimize import minimize
-    from scipy.special import xlogy
     from .estimate import estimate
     
     assert wmin >= 0
@@ -31,7 +29,19 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
     num = qmle['num']
     assert num >= 1
 
-    cvscale = np.maximum(1, np.maximum(np.abs(cvmin), np.abs(cvmax)))
+    sumwsq = 0
+    sumcvsq = np.zeros_like(cvmax)
+    n = 0
+    for c, w, r, cvs in datagen():
+        if c > 0:
+            sumwsq += c * (w - 1) * (w - 1)
+            sumcvsq += c * np.square(cvs)
+            n += c
+
+    assert n == num
+
+    wscale = max(1, np.sqrt(sumwsq / n))
+    cvscale = np.maximum(1, np.sqrt(sumcvsq / n))
 
     # solve dual
 
@@ -54,7 +64,7 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
             if c > 0:
                 n += c
                 nicecvs = cvs / cvscale
-                denom = num*(1 + p[0] * (w - 1) / wmax + np.dot(p[1:], nicecvs))
+                denom = num*(1 + p[0] * (w - 1) / wscale + np.dot(p[1:], nicecvs))
                 cost -= c * logstar(denom) 
 
         assert n == num
@@ -64,20 +74,18 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
 
         return cost 
 
-
     def jacdualobjective(p):
         jac = np.zeros_like(p)
 
         for c, w, r, cvs in datagen():
             if c > 0:
                 nicecvs = cvs / cvscale
-                denom = num*(1 + p[0] * (w - 1) / wmax + np.dot(p[1:], nicecvs))
+                denom = num*(1 + p[0] * (w - 1) / wscale + np.dot(p[1:], nicecvs))
                 jacdenom = c * jaclogstar(denom)
-                jac[0] -= (w - 1) * jacdenom / wmax
+                jac[0] -= (w - 1) * jacdenom / wscale
                 jac[1:] -= jacdenom * nicecvs
 
         return jac
-
 
     def hessdualobjective(p):
         hess = np.zeros((len(p),len(p)))
@@ -85,17 +93,16 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
         for c, w, r, cvs in datagen():
             if c > 0:
                 nicecvs = cvs / cvscale
-                denom = num*(1 + p[0] * (w - 1) / wmax + np.dot(p[1:], nicecvs))
+                denom = num*(1 + p[0] * (w - 1) / wscale + np.dot(p[1:], nicecvs))
                 hessdenom = c * hesslogstar(denom)
-                coeffs = np.hstack(( (w - 1) / wmax, nicecvs ))
+                coeffs = np.hstack(( (w - 1) / wscale, nicecvs ))
                 hess -= hessdenom * np.outer(coeffs, coeffs)
 
         hess *= num
 
         return hess
 
-
-    x0 = [ qmle['betastar'] * wmax / num ] + [ 0.0 for i, _ in enumerate(cvscale) ]
+    x0 = [ qmle['betastar'] * wscale / num ] + [ 0.0 for i, _ in enumerate(cvscale) ]
 
 #    from .gradcheck import gradcheck, hesscheck
 #    gradcheck(f=dualobjective,
@@ -109,15 +116,24 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
 #              what='jacdualobjective')
 
     consE = np.array([
-        np.hstack(((w - 1) / wmax, bitvec / cvscale))
-        for w in (wmin, wmax)
-        for bitvec in bitgen(cvmin, cvmax)
-    ])
+                np.hstack(((w - 1) / wscale, bitvec / cvscale))
+                for w in (wmin, wmax)
+                for bitvec in bitgen(cvmin, cvmax)
+            ],
+            dtype='float64')
     d = np.array([ -1
                    for w in (wmin, wmax)
                    for bitvec in bitgen(cvmin, cvmax)
-                 ])
+                 ],
+                 dtype='float64')
 
+    # NB: things i've tried
+    #
+    # scipy.minimize method='slsqp': 7.25 s/it, reliable
+    # sqp with cvxopt.qp: 9.40s/it, reliable
+    # cvxopt.cp: 9.43s/it, reliable
+
+    from scipy.optimize import minimize
     optresult = minimize(fun=dualobjective,
                          x0=x0,
                          jac=jacdualobjective,
@@ -133,37 +149,69 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
                             'maxiter': 1000,
                          })
     fstar, xstar = optresult.fun, optresult.x
+    if raiseonerr:
+        from pprint import pformat
+        assert optresult.success, pformat(optresult)
+
+#    from .sqp import sqp
+#    fstar, xstar = sqp(
+#            f=dualobjective,
+#            gradf=jacdualobjective,
+#            hessf=hessdualobjective,
+#            E=consE,
+#            d=d,
+#            x0=x0,
+#            strict=True,
+#    )
+
+#    from cvxopt import solvers, matrix
+#    def F(x=None, z=None):
+#        if x is None: return 0, matrix(x0)
+#        p = np.array([ v for v in x ])
+#        f = dualobjective(p)
+#        jf = jacdualobjective(p)
+#        Df = matrix(jf).T
+#        if z is None: return f, Df
+#        hf = z[0] * hessdualobjective(p)
+#        H = matrix(hf, hf.shape)
+#        return f, Df, H
+#    solvers.options['show_progress'] = False
+#    soln = solvers.cp(F,
+#                      G=-matrix(consE, consE.shape),
+#                      h=-matrix(d))
+#    if raiseonerr:
+#        from pprint import pformat
+#        assert soln['status'] == 'optimal', pformat(soln)
+#    xstar = soln['x']
+#    fstar = soln['primal objective']
 
     vhat = 0
     rawsumofw = 0
     for c, w, r, cvs in datagen():
         if c > 0:
             nicecvs = cvs / cvscale
-            denom = num * (1 + xstar[0] * (w - 1) / wmax + np.dot(xstar[1:], nicecvs))
+            denom = num * (1 + xstar[0] * (w - 1) / wscale + np.dot(xstar[1:], nicecvs))
             q = c / denom
             vhat += q * w * r
             rawsumofw += q * w
 
     if raiseonerr:
         from pprint import pformat
-        assert (optresult.success and
-                rawsumofw <= 1.0 + 1e-4 and
+        assert (rawsumofw <= 1.0 + 1e-4 and
                 np.all(consE.dot(xstar) >= d - 1e-4)
                ), pformat({
-                   'optresult': optresult,
                    'rawsumofw': rawsumofw,
                    'consE.dot(xstar) - d': consE.dot(xstar) - d,
                })
 
-    vmin = vhat + max(0.0, 1.0 - rawsumofw) * rmin
-    vmax = vhat + max(0.0, 1.0 - rawsumofw) * rmax
+    vmin = max(rmin, vhat + max(0.0, 1.0 - rawsumofw) * rmin)
+    vmax = min(rmax, vhat + max(0.0, 1.0 - rawsumofw) * rmax)
     vhat += max(0.0, 1.0 - rawsumofw) * (rmax - rmin) / 2.0
+    vhat = min(rmax, max(rmin, vhat))
 
-    betastar = xstar[0] * (num / wmax)
+    betastar = xstar[0] * (num / wscale)
     deltastar = num * (xstar[1:] / cvscale)
     qfunc = lambda c, w, r, cvs: c / (num + betastar * (w - 1) + np.dot(deltastar, cvs))
-
-    from scipy.special import xlogy
 
     return vhat, {
         'vmin': vmin,
