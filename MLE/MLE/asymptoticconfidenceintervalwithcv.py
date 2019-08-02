@@ -1,5 +1,5 @@
 # See JohnStyleProfile.ipynb for derivation, implementation notes, and test
-def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
+def asymptoticconfidenceintervalwithcv(datagen, rangefn,
                                        alpha=0.05, rmin=0, rmax=1, 
                                        raiseonerr=False):
     from scipy.stats import f
@@ -8,28 +8,9 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
     from math import exp, log
     import numpy as np
 
-    assert wmin >= 0
-    assert wmin < 1
-    assert wmax > 1
     assert rmax >= rmin
-    assert np.all(cvmax >= cvmin)
 
-    def bitgen(minv, maxv):
-        def bitgenhelp(vals, minv, maxv, pos, length):
-            if pos >= length:
-                yield tuple(vals)
-            else:
-                vals[pos] = minv[pos]
-                yield from bitgenhelp(vals, minv, maxv, pos+1, length)
-                vals[pos] = maxv[pos]
-                yield from bitgenhelp(vals, minv, maxv, pos+1, length)
-            
-        assert len(minv) == len(maxv)
-        length = len(minv)
-        yield from bitgenhelp([None]*length, minv, maxv, 0, length) 
-
-    vhat, qmle = estimatewithcv(datagen=datagen, wmin=wmin, wmax=wmax,
-                                cvmin=cvmin, cvmax=cvmax,
+    vhat, qmle = estimatewithcv(datagen=datagen, rangefn=rangefn,
                                 rmin=rmin, rmax=rmax, raiseonerr=raiseonerr)
     num = qmle['num']
     if num < 2:
@@ -39,12 +20,16 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
 
     vboundsnocv, qstarnocv = asymptoticconfidenceinterval(
         datagen=lambda: ((c, w, r) for c, w, r, _ in datagen()),
-        wmin=wmin, wmax=wmax, rmin=rmin, rmax=rmax, raiseonerr=raiseonerr)
+        wmin=rangefn('wmin'), wmax=rangefn('wmax'),
+        rmin=rmin, rmax=rmax, raiseonerr=raiseonerr)
 
     Delta = 0.5 * f.isf(q=alpha, dfn=1, dfd=num-1)
 
     sumwsq = 0
-    sumcvsq = np.zeros_like(cvmax)
+    for c, w, r, cvs in datagen():
+        sumcvsq = np.zeros_like(cvs)
+        break
+
     n = 0
     for c, w, r, cvs in datagen():
         if c > 0:
@@ -164,10 +149,9 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
         return hess
 
     consE = np.array([
-        np.hstack(( 1, w  / wscale, bitvec / cvscale ))
-        for w in (wmin, wmax)
+        np.hstack(( 1, w  / wscale, cv / cvscale ))
+        for w, cv in rangefn()
         for r in (rmin, rmax)
-        for bitvec in bitgen(cvmin, cvmax)
     ], dtype='float64')
 
     retvals = []
@@ -181,9 +165,8 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
 
         sign = 1 - 2 * what
         d = np.array([ -sign*w*r + tiny
-                       for w in (wmin, wmax)
+                       for w, cv in rangefn()
                        for r in (rmin, rmax)
-                       for bitvec in bitgen(cvmin, cvmax)
                      ],
                      dtype='float64')
 
@@ -223,48 +206,36 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
 #                  what='jacdualobjective')
 
         # NB: things i've tried
-        # slsqp: 10.56s/it, sometimes fails
-        # sqp with cvxopt: 14.81s/it, ...?
-        # cvxopt: 19.72s/it, unknown reliability (probably good)
+        # slsqp: 10.56s/it, appears reliable
+        # cvxopt: 19.72s/it, appears reliable
 
-#        from scipy.optimize import minimize
-#        optresult = minimize(method='slsqp',
-#                             fun=dualobjective,
-#                             x0=x0,
-#                             args=(sign,),
-#                             jac=jacdualobjective,
-#                             #hess=hessdualobjective,
-#                             constraints=[{
-#                                 'type': 'ineq',
-#                                 'fun': lambda x: consE.dot(x) - d,
-#                                 'jac': lambda x: consE
-#                             }],
-#                             options={
-#                                'ftol': 1e-12,
-#                                'maxiter': 1000,
-#                             },
-#                    )
-#        if raiseonerr:
-#            from pprint import pformat
-#            assert optresult.success, pformat(optresult)
-#
-#        fstar, xstar = optresult.fun, optresult.x
+        from scipy.optimize import minimize
+        optresult = minimize(method='slsqp',
+                             fun=dualobjective,
+                             x0=x0,
+                             args=(sign,),
+                             jac=jacdualobjective,
+                             #hess=hessdualobjective,
+                             constraints=[{
+                                 'type': 'ineq',
+                                 'fun': lambda x: consE.dot(x) - d,
+                                 'jac': lambda x: consE
+                             }],
+                             options={
+                                'ftol': 1e-12,
+                                'maxiter': 1000,
+                             },
+                    )
+        if raiseonerr:
+            from pprint import pformat
+            assert optresult.success, pformat(optresult)
 
-        from .sqp import sqp
-        fstar, xstar = sqp(
-                f=lambda p: dualobjective(p, sign),
-                gradf=lambda p: jacdualobjective(p, sign),
-                hessf=lambda p: hessdualobjective(p, sign),
-                E=consE,
-                d=d,
-                x0=x0,
-                strict=True,
-        )
+        fstar, xstar = optresult.fun, optresult.x
 
 #        from cvxopt import solvers, matrix
 #        def F(x=None, z=None):
 #            if x is None: return 0, matrix(x0)
-#            p = np.array([ v for v in x ])
+#            p = np.reshape(np.array(x), -1)
 #            f = dualobjective(p, sign)
 #            jf = jacdualobjective(p, sign)
 #            Df = matrix(jf).T
@@ -273,10 +244,12 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
 #            H = matrix(hf, hf.shape)
 #            return f, Df, H
 #
-#        solvers.options['show_progress'] = False
 #        soln = solvers.cp(F,
 #                          G=-matrix(consE, consE.shape),
-#                          h=-matrix(d))
+#                          h=-matrix(d),
+#                          kktsolver='ldl',
+#                          options={'show_progress':False,
+#                                   'kktreg': 1e-9})
 #        if raiseonerr:
 #            from pprint import pformat
 #            assert soln['status'] == 'optimal', pformat(soln)
@@ -284,10 +257,10 @@ def asymptoticconfidenceintervalwithcv(datagen, wmin, wmax, cvmin, cvmax,
 #        xstar = soln['x']
 #        fstar = soln['primal objective']
 
-        kappastar = (-rscale * fstar + xstar[0] + xstar[1] / wscale) / num
         gammastar = xstar[0]
         betastar = xstar[1] / wscale
         deltastar = xstar[2:] / cvscale
+        kappastar = (-rscale * fstar + gammastar + betastar) / num
         vbound = -sign * fstar
 
         qfunc = lambda c, w, r, cvs: kappastar * c / (gammastar + betastar * w + np.dot(deltastar, cvs) + sign * w * r)

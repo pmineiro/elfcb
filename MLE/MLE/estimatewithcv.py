@@ -1,36 +1,20 @@
 # See estimate.ipynb for derivation, implementation notes, and test
-def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr=False):
+def estimatewithcv(datagen, rangefn, rmin=0, rmax=1, raiseonerr=False):
     import numpy as np
     from .estimate import estimate
-    
-    assert wmin >= 0
-    assert wmin < 1
-    assert wmax > 1
+
     assert rmax >= rmin
-    assert np.all(cvmax >= cvmin)
 
-    def bitgen(minv, maxv):
-        def bitgenhelp(vals, minv, maxv, pos, length):
-            if pos >= length:
-                yield tuple(vals)
-            else:
-                vals[pos] = minv[pos]
-                yield from bitgenhelp(vals, minv, maxv, pos+1, length)
-                vals[pos] = maxv[pos]
-                yield from bitgenhelp(vals, minv, maxv, pos+1, length)
-            
-        assert len(minv) == len(maxv)
-        length = len(minv)
-        yield from bitgenhelp([None]*length, minv, maxv, 0, length) 
-
-
-    vhat, qmle = estimate(datagen=lambda: ((c, w, r) for c, w, r, _ in datagen()), wmin=wmin, wmax=wmax, rmin=rmin, rmax=rmax, raiseonerr=raiseonerr)
+    vhat, qmle = estimate(datagen=lambda: ((c, w, r) for c, w, r, _ in datagen()), wmin=rangefn('wmin'), wmax=rangefn('wmax'), rmin=rmin, rmax=rmax, raiseonerr=raiseonerr)
 
     num = qmle['num']
     assert num >= 1
 
     sumwsq = 0
-    sumcvsq = np.zeros_like(cvmax)
+    for c, w, r, cvs in datagen():
+        sumcvsq = np.zeros_like(cvs)
+        break
+
     n = 0
     for c, w, r, cvs in datagen():
         if c > 0:
@@ -116,21 +100,18 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
 #              what='jacdualobjective')
 
     consE = np.array([
-                np.hstack(((w - 1) / wscale, bitvec / cvscale))
-                for w in (wmin, wmax)
-                for bitvec in bitgen(cvmin, cvmax)
+                np.hstack(((w - 1) / wscale, cv / cvscale))
+                for w, cv in rangefn()
             ],
             dtype='float64')
     d = np.array([ -1
-                   for w in (wmin, wmax)
-                   for bitvec in bitgen(cvmin, cvmax)
+                   for _ in rangefn()
                  ],
                  dtype='float64')
 
-    # NB: things i've tried
+    # NB: slsqp is faster than cvxopt and appears reliable
     #
     # scipy.minimize method='slsqp': 7.25 s/it, reliable
-    # sqp with cvxopt.qp: 9.40s/it, reliable
     # cvxopt.cp: 9.43s/it, reliable
 
     from scipy.optimize import minimize
@@ -153,21 +134,10 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
         from pprint import pformat
         assert optresult.success, pformat(optresult)
 
-#    from .sqp import sqp
-#    fstar, xstar = sqp(
-#            f=dualobjective,
-#            gradf=jacdualobjective,
-#            hessf=hessdualobjective,
-#            E=consE,
-#            d=d,
-#            x0=x0,
-#            strict=True,
-#    )
-
 #    from cvxopt import solvers, matrix
 #    def F(x=None, z=None):
 #        if x is None: return 0, matrix(x0)
-#        p = np.array([ v for v in x ])
+#        p = np.reshape(np.array(x), -1)
 #        f = dualobjective(p)
 #        jf = jacdualobjective(p)
 #        Df = matrix(jf).T
@@ -175,15 +145,14 @@ def estimatewithcv(datagen, wmin, wmax, cvmin, cvmax, rmin=0, rmax=1, raiseonerr
 #        hf = z[0] * hessdualobjective(p)
 #        H = matrix(hf, hf.shape)
 #        return f, Df, H
-#    solvers.options['show_progress'] = False
 #    soln = solvers.cp(F,
 #                      G=-matrix(consE, consE.shape),
-#                      h=-matrix(d))
+#                      h=-matrix(d),
+#                      options={'show_progress': False})
+#    fstar, xstar = soln['primal objective'], soln['x']
 #    if raiseonerr:
 #        from pprint import pformat
 #        assert soln['status'] == 'optimal', pformat(soln)
-#    xstar = soln['x']
-#    fstar = soln['primal objective']
 
     vhat = 0
     rawsumofw = 0

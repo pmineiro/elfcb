@@ -22,7 +22,7 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
     Delta = 0.5 * f.isf(q=alpha, dfn=1, dfd=num-1)
 
     sumwsq = sum(c * w * w for c, w, _ in datagen())
-    wscale = max(1, np.sqrt(sumwsq / num))
+    wscale = max(1.0, np.sqrt(sumwsq / num))
     rscale = max(1.0, np.abs(rmin), np.abs(rmax))
 
     # solve dual
@@ -142,14 +142,14 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
             continue
 
         sign = 1 - 2 * what
-        d = np.array([ -sign*w*r  + tiny
+        d = np.array([ -sign*w*r + tiny
                        for w in (wmin, wmax)
                        for r in (rmin, rmax)
                      ],
                      dtype='float64')
 
         minsr = min(sign*rmin, sign*rmax)
-        gamma0, beta0 = ( (num - qmle['betastar']) + 2 * tiny,
+        gamma0, beta0 = ( num - qmle['betastar'] + 2 * tiny,
                           wscale * (qmle['betastar'] - (1 + 1 / wscale) * minsr)
                         )
 
@@ -183,7 +183,7 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
         # scipy.minimize method='slsqp': 3.78 it/s, sometimes fails
         # sqp with quadprog: 1.75 it/s, sometimes fails
         # sqp with cvxopt.qp: 1.05 s/it, reliable
-        # cvxopt.cp: 1.37 s/it, reliable
+        # cvxopt.cp: 1.37 s/it, reliable <= seems most trustworthy
         # minimize_ipopt: 4.85 s/it, reliable
 
 ##       from ipopt import minimize_ipopt
@@ -213,43 +213,45 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
 #
 #        fstar, xstar = optresult.fun, optresult.x
 
-        from .sqp import sqp
-        fstar, xstar = sqp(
-                f=lambda p: dualobjective(p, sign),
-                gradf=lambda p: jacdualobjective(p, sign),
-                hessf=lambda p: hessdualobjective(p, sign),
-                E=consE,
-                d=d,
-                x0=x0,
-                strict=True,
-        )
+#        from .sqp import sqp
+#        fstar, xstar = sqp(
+#                f=lambda p: dualobjective(p, sign),
+#                gradf=lambda p: jacdualobjective(p, sign),
+#                hessf=lambda p: hessdualobjective(p, sign),
+#                E=consE,
+#                d=d,
+#                x0=x0,
+#                strict=True,
+#                condfac=1e-9,
+#        )
 
-#        from cvxopt import solvers, matrix
-#        def F(x=None, z=None):
-#            if x is None: return 0, matrix(x0)
-#            p = np.array([ x[0], x[1] ])
-#            f = dualobjective(p, sign)
-#            jf = jacdualobjective(p, sign)
-#            Df = matrix(jf).T
-#            if z is None: return f, Df
-#            hf = z[0] * hessdualobjective(p, sign)
-#            H = matrix(hf, hf.shape)
-#            return f, Df, H
-#
-#        solvers.options['show_progress'] = False
-#        soln = solvers.cp(F,
-#                          G=-matrix(consE, consE.shape),
-#                          h=-matrix(d))
-#        if raiseonerr:
-#            from pprint import pformat
-#            assert soln['status'] == 'optimal', pformat(soln)
-#
-#        xstar = soln['x']
-#        fstar = soln['primal objective']
+        from cvxopt import solvers, matrix
+        def F(x=None, z=None):
+            if x is None: return 0, matrix(x0)
+            p = np.reshape(np.array(x), -1)
+            f = dualobjective(p, sign)
+            jf = jacdualobjective(p, sign)
+            Df = matrix(jf).T
+            if z is None: return f, Df
+            hf = z[0] * hessdualobjective(p, sign)
+            H = matrix(hf, hf.shape)
+            return f, Df, H
 
-        kappastar = (-rscale * fstar + xstar[0] + xstar[1] / wscale) / num
+        soln = solvers.cp(F,
+                          G=-matrix(consE, consE.shape),
+                          h=-matrix(d),
+                          options={'show_progress': False})
+
+        if raiseonerr:
+            from pprint import pformat
+            assert soln['status'] == 'optimal', pformat(soln)
+
+        xstar = soln['x']
+        fstar = soln['primal objective']
+
         gammastar = xstar[0]
         betastar = xstar[1] / wscale
+        kappastar = (-rscale * fstar + gammastar + betastar) / num
 
         qfunc = lambda c, w, r, kappa=kappastar, gamma=gammastar, beta=betastar, s=sign: kappa * c / (gamma + (beta + s * r) * w)
 

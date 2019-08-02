@@ -170,6 +170,7 @@ def eval_pi(data, actionseed):
     import os
 
     counts = defaultdict(int)
+    countswithcvs = defaultdict(int)
     numclasses = data.numclasses()
     
     state = numpy.random.RandomState(actionseed)
@@ -179,7 +180,7 @@ def eval_pi(data, actionseed):
  
     learnlog, learnpi, _ = data.splits()
 
-    truepv = 0
+    truepv = 0.0
     lineno = 0
     
     for i, line in enumerate(data, 1):
@@ -202,16 +203,27 @@ def eval_pi(data, actionseed):
         pred = numpy.argmax(probs)
         del ex
 
-        truepv += 1 if 1+pred == label else 0
+        truepv += 1.0 if 1+pred == label else 0.0
         lineno += 1
 
-        iw = 1 / logprobs[action] if action == pred else 0
-        obspv = 1 if 1+action == label else 0
+        iw = 1.0 / logprobs[action] if action == pred else 0.0
+        obspv = 1.0 if 1+action == label else 0.0
         counts[(iw, obspv)] += 1
+        countswithcvs[(iw, obspv, pred)] += 1
 
     del vw
+
+    cvdata = defaultdict(int)
+    for (w, r, pia), c in countswithcvs.items():
+        cvs = tuple(
+                   w - 1.0 if a == pia else 0.0 for a in range(numclasses)
+        )
+        cvdata[(w, r, cvs)] += c
     
-    return [(c, w, r) for (w, r), c in counts.items()], truepv/lineno
+    return ([(c, w, r) for (w, r), c in counts.items()],
+            truepv/lineno,
+            [(c, w, r, numpy.array(cvs)) for (w, r, cvs), c in cvdata.items()]
+           )
 
 # main
 
@@ -225,26 +237,50 @@ def dofile(filename, lineseed, actionseed, passes, exploration):
         make_historical_policy(data, actionseed, vwextraargs)
         wmax = exploration.getwmax(data.numclasses())
 
+        def rangefn(what=None):
+            wmin = 0
+            numactions = data.numclasses()
+            if what == 'wmin':
+                return wmin
+            elif what == 'wmax':
+                return wmax
+            else:
+                def iter_func():
+                    # from samplewithcvs():
+                    # 1 cv is (w-1) and the rest are 0
+                    for index in range(numactions):
+                        for w in (wmin, wmax):
+                            cvvals = numpy.zeros(numactions, dtype='float64')
+                            cvvals[index] = w - 1.0
+                            yield (w, cvvals)
+
+            return iter_func()
+
         ips = []
         snips = []
         mle = []
+        mlecv = []
         truevals = []
 
         # 95% for t-test with dof=60 => 2x std-dev
         # 90% for t-test with dof=5 => 2x std-dev
         for x in range(60):
             learn_pi(data, actionseed+x, passes)
-            counts, truepv = eval_pi(data, actionseed+x)
+            counts, truepv, countswithcvs = eval_pi(data, actionseed+x)
             ips.append(ClippedIPS.estimate(counts))
             snipsres = SNIPS.estimate(counts)
             snips.append(snipsres)
             mleres = MLE.MLE.estimate(datagen=lambda: counts, wmin=0, wmax=wmax)
             mle.append(snipsres*mleres[1]['vmax'] + (1 - snipsres)*mleres[1]['vmin'])
+            mlecvres = MLE.MLE.estimatewithcv(datagen=lambda: countswithcvs,
+                                              rangefn=rangefn)
+            mlecv.append(snipsres*mlecvres[1]['vmax'] + (1 - snipsres)*mlecvres[1]['vmin'])
             truevals.append(truepv)
     
         ips = numpy.array(ips)
         snips = numpy.array(snips)
         mle = numpy.array(mle)
+        mlecv = numpy.array(mlecv)
         truevals = numpy.array(truevals)
 
         ipsvsmle = numpy.mean(numpy.square(ips - truevals) 
@@ -268,6 +304,16 @@ def dofile(filename, lineseed, actionseed, passes, exploration):
                 'base' if snipsvsmle < min(-1e-8, -2*snipsvsmlevar) else
                 'tie')
 
+        snipsvsmlecv = numpy.mean(numpy.square(snips - truevals) 
+                                  - numpy.square(mlecv - truevals))
+        snipsvsmlecvvar = numpy.std(numpy.square(snips - truevals) 
+                                    - numpy.square(mlecv - truevals),
+                                    ddof=1) / numpy.sqrt(len(snips))
+        snipsvsmlecvwinloss = (
+                'mle' if snipsvsmlecv > max(1e-8, 2*snipsvsmlecvvar) else
+                'base' if snipsvsmlecv < min(-1e-8, -2*snipsvsmlecvvar) else
+                'tie')
+
     finally:
         try:
             import os
@@ -276,7 +322,7 @@ def dofile(filename, lineseed, actionseed, passes, exploration):
         except:
             pass
 
-    return ipsvsmlewinloss, snipsvsmlewinloss
+    return ipsvsmlewinloss, snipsvsmlewinloss, snipsvsmlecvwinloss
 
 def doit(lineseed, actionseed, passes, dirname, exploration, poolsize):
     from collections import Counter
@@ -292,7 +338,7 @@ def doit(lineseed, actionseed, passes, dirname, exploration, poolsize):
                                        passes,
                                        exploration))
              for fileno, filename in enumerate(all_data_files(dirname))
-#	     if '1413_3' in filename 
+# 	     if '1413_3' in filename
            ]
 
     for job in jobs:
@@ -302,7 +348,8 @@ def doit(lineseed, actionseed, passes, dirname, exploration, poolsize):
     pool.join()
 
     return { 'ipsvsmle': Counter([ x[0] for x in results ]),
-             'snipsvsmle': Counter([ x[1] for x in results ])
+             'snipsvsmle': Counter([ x[1] for x in results ]),
+             'snipsvsmlecv': Counter([ x[2] for x in results ]),
            }
 
 class EpsilonGreedy:

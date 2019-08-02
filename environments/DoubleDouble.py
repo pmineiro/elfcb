@@ -6,8 +6,27 @@ class DoubleDouble:
         self.numactions = numactions
         self.state = numpy.random.RandomState(seed+1)
         self.env = ControlledRangeVariance.ControlledRangeVariance(seed=seed, wsupport=wsupport, expwsq=expwsq)
+        # NB: range() and rawsample() assume pi is deterministic
+        assert wsupport[0] == 0
         
-    def range(self):
+    def range(self, what=None):
+        (wmin, wmax) = self.env.range()
+        if what == 'wmin':
+            return wmin
+        elif what == 'wmax':
+            return wmax
+        else:
+            def iter_func():
+                # from samplewithcvs():
+                # 1 cv is (w-1) and the rest are 0
+                for index in range(self.numactions):
+                    for w in (wmin, wmax):
+                        cvvals = numpy.zeros(self.numactions, dtype='float64')
+                        cvvals[index] = w - 1.0
+                        yield (w, cvvals)
+
+            return iter_func()
+
         (wmin, wmax) = self.env.range()
         return wmin, wmax, (wmin-1)*numpy.ones(self.numactions-1), (wmax-1)*numpy.ones(self.numactions-1)
         
@@ -42,8 +61,7 @@ class DoubleDouble:
     
         for c, w, r, pia in data:
             cvs = tuple(
-                       w - 1 if a == pia else 0 for a in range(self.numactions)
-                       if a > 0
+                       w - 1.0 if a == pia else 0.0 for a in range(self.numactions)
             )
             nicedata.update({ (w, r, cvs): c})
 
