@@ -41,5 +41,6 @@ Here's a recipe.
 ### Step 2: Install Python packages
 
 ```console
-(elfcb) pmineiro@PMINEIRO-14% pip install cvxpy jupyter jupyter-contrib-nbextensions jupyter-nbextensions-configurator matplotlib quadprog tqdm
+(elfcb) pmineiro@PMINEIRO-14% pip install cvxpy jupyter jupyter-contrib-nbextensions jupyter-nbextensions-configurator matplotlib tqdm
+(elfcb) pmineiro@PMINEIRO-14% conda install -c conda-forge cvxopt
 ...
