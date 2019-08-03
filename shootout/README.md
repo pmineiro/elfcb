@@ -2,31 +2,38 @@
 
 ## Estimation
 
-* ```make estimationshootout``` will (eventually) produce the results in Tables 1 and 4.
+* ```make estimationshootout``` will (eventually) produce the results in Tables 1 and 4.  'snipsvsmlecv' compares snips to the MLE with control variates, which is new since the paper.
 ```console
 (elfcb) pmineiro@PMINEIRO-253% make estimationshootout 
 ./do-estimation-shootout.py --dirname orig40
 ('EpsilonGreedy 0.05',
  {'ipsvsmle': Counter({'mle': 26, 'tie': 11, 'base': 3}),
-  'snipsvsmle': Counter({'tie': 29, 'mle': 10, 'base': 1})})
+  'snipsvsmle': Counter({'tie': 29, 'mle': 10, 'base': 1}),
+  'snipsvsmlecv': Counter({'tie': 32, 'mle': 8})})
 ('EpsilonGreedy 0.1',
  {'ipsvsmle': Counter({'mle': 24, 'tie': 13, 'base': 3}),
-  'snipsvsmle': Counter({'tie': 35, 'mle': 5})})
+  'snipsvsmle': Counter({'tie': 35, 'mle': 5}),
+  'snipsvsmlecv': Counter({'tie': 34, 'mle': 6})})
 ('EpsilonGreedy 0.25',
  {'ipsvsmle': Counter({'mle': 27, 'tie': 10, 'base': 3}),
-  'snipsvsmle': Counter({'tie': 38, 'mle': 2})})
+  'snipsvsmle': Counter({'tie': 38, 'mle': 2}),
+  'snipsvsmlecv': Counter({'tie': 37, 'mle': 3})})
 ('Bag 10',
  {'ipsvsmle': Counter({'tie': 20, 'mle': 11, 'base': 9}),
-  'snipsvsmle': Counter({'tie': 33, 'mle': 5, 'base': 2})})
+  'snipsvsmle': Counter({'tie': 33, 'mle': 5, 'base': 2}),
+  'snipsvsmlecv': Counter({'tie': 33, 'mle': 5, 'base': 2})})
 ('Bag 32',
  {'ipsvsmle': Counter({'mle': 18, 'tie': 15, 'base': 7}),
-  'snipsvsmle': Counter({'tie': 33, 'mle': 5, 'base': 2})})
+  'snipsvsmle': Counter({'tie': 33, 'mle': 5, 'base': 2}),
+  'snipsvsmlecv': Counter({'tie': 32, 'mle': 6, 'base': 2})})
 ('Cover 10',
  {'ipsvsmle': Counter({'tie': 15, 'mle': 14, 'base': 11}),
-  'snipsvsmle': Counter({'tie': 32, 'mle': 8})})
+  'snipsvsmle': Counter({'tie': 32, 'mle': 8}),
+  'snipsvsmlecv': Counter({'tie': 32, 'mle': 8})})
 ('Cover 32',
  {'ipsvsmle': Counter({'base': 16, 'tie': 13, 'mle': 11}),
-  'snipsvsmle': Counter({'tie': 29, 'base': 7, 'mle': 4})})
+  'snipsvsmle': Counter({'tie': 29, 'base': 7, 'mle': 4}),
+  'snipsvsmlecv': Counter({'tie': 30, 'base': 6, 'mle': 4})})
 ```
 
 ## Learning
