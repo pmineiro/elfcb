@@ -70,7 +70,7 @@
  ```
 ### Incremental Learning
 
-This is an "online" (in the computationally incremental sense) dual update strategy. 
+This is an "online" (in the computationally incremental sense) dual update strategy combined with learning.  It is not in the original paper.
 
 * ```make learningshootoutonlineorig40``` will (eventually) produce results analogous to the first column of Table 3.  Results with cover are particularly good compared to the batch strategy.
 ```console
