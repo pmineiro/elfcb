@@ -1,4 +1,4 @@
-# somewhat cheesy, but remarkably robust: 
+# somewhat cheesy, but remarkably robust:
 # 1. approximate histogram of historical counts
 # 2. do one Newton step per datum
 
@@ -28,10 +28,20 @@ class Online:
 
             gw = self.gw(w)
             b = self.numbuckets * (gw - self.gwmin) / (self.gwmax - self.gwmin)
-            blo = int(floor(b))
-            bhi = int(ceil(b))
+            blo = max(int(floor(b)), 0)
+            bhi = min(int(ceil(b)), self.numbuckets)
             wlo = round(self.gwinv(self.gwmin + blo * (self.gwmax - self.gwmin) / self.numbuckets), 3)
-            whi = round(self.gwinv(self.gwmin + bhi * (self.gwmax - self.gwmin) / self.numbuckets), 3) 
+            whi = round(self.gwinv(self.gwmin + bhi * (self.gwmax - self.gwmin) / self.numbuckets), 3)
+#            from pprint import pformat
+#            assert wlo >= self.wmin and whi <= self.wmax, pformat({
+#                'blo': blo,
+#                'bhi': bhi,
+#                'numbuckets': self.numbuckets,
+#                'wlo': wlo,
+#                'whi': whi,
+#                'wmin': self.wmin,
+#                'wmax': self.wmax
+#                })
 
             rapprox = round(100*r)
 
@@ -74,7 +84,7 @@ class Online:
             self.betastar += -g / H
 
             self.betastar = max(self.betastar, -1 / (self.wmax - 1))
-            self.betastar = min(self.betastar, 1 / (1 - self.wmin)) 
+            self.betastar = min(self.betastar, 1 / (1 - self.wmin))
 
             return self.betastar * self.n
 
@@ -110,7 +120,7 @@ class Online:
 
             gamma, beta = p
             logcost = -delta
-    
+
             n = 0
             for c, w, r in datagen():
                 if c > 0:
@@ -118,10 +128,10 @@ class Online:
                     denom = gamma + beta * w + sign * w * r
                     mledenom = betamle * (w - 1) + num
                     logcost += c * (Online.CI.logstar(denom) - Online.CI.logstar(mledenom))
-    
+
             if n > 0:
                 logcost /= n
-    
+
             return -exp(logcost) + gamma / n + beta / n
 
         @staticmethod
@@ -163,7 +173,7 @@ class Online:
             logcost = -delta
             jac = np.zeros_like(p)
             hess = np.zeros((2,2))
-    
+
             n = 0
             for c, w, r in datagen():
                 if c > 0:
@@ -174,21 +184,21 @@ class Online:
                     jaclogcost = c * Online.CI.jaclogstar(denom)
                     jac[0] += jaclogcost
                     jac[1] += w * jaclogcost
-    
+
                     hesslogcost = c * Online.CI.hesslogstar(denom)
                     hess[0][0] += hesslogcost
                     hess[0][1] += w * hesslogcost
                     hess[1][1] += w * w * hesslogcost
-    
+
             if n > 0:
                 logcost /= n
                 jac /= n
                 hess /= n
-    
+
             hess[1][0] = hess[0][1]
             hess += np.outer(jac, jac)
             hess *= -exp(logcost)
-    
+
             return hess
 
         @staticmethod
@@ -197,7 +207,7 @@ class Online:
 
             gamma, beta = p
             logcost = -delta
-    
+
             sumofone = 0
             sumofw = 0
             sumofwr = 0
@@ -209,20 +219,28 @@ class Online:
                     denom = gamma + beta * w + sign * w * r
                     mledenom = betamle * (w - 1) + num
                     logcost += c * (Online.CI.logstar(denom) - Online.CI.logstar(mledenom))
-    
-                    safe = Online.CI.safedenom(denom)
-                    sumofone += c / safe
-                    sumofw += c*w / safe
-                    sumofwr += c*w*r / safe
-    
+
+                    try:
+                        safe = Online.CI.safedenom(denom)
+                        sumofone += c / safe
+                        sumofw += c*w / safe
+                        sumofwr += c*w*r / safe
+                    except:
+                        from pprint import pformat
+                        print(pformat({
+                            'safe': safe,
+                            'datagen': list(datagen)
+                            }), flush=True)
+                        raise
+
             if n > 0:
                 logcost /= n
-    
+
             kappa = exp(logcost)
             sumofone *= kappa
             sumofw *= kappa
             sumofwr *= kappa
-    
+
             return sumofone, sumofw, sumofwr, kappa
 
         def __init__(self, wmin, wmax, rmin, rmax, alpha=0.05):
@@ -235,14 +253,16 @@ class Online:
             ], dtype='float64')
 
             self.d = np.array([ -1*min(w, 1)*r + Online.CI.tiny/max(w, 1)
-                            for w in (wmin, wmax)
-                            for r in (rmin, rmax)
-                         ],
-                         dtype='float64')
+                                 for w in (wmin, wmax)
+                                 for r in (rmin, rmax)
+                              ],
+                              dtype='float64')
 
             self.duals = np.array([1.0, 0.0], dtype='float64')
             self.alpha = alpha
             self.mle = Online.MLE(wmin, wmax)
+            self.wmin = wmin
+            self.wmax = wmax
             self.n = 0
             self.stats = None
 
@@ -253,36 +273,60 @@ class Online:
             betastar = self.mle.update(datagen)
             self.n = sum(c for c, _, _ in datagen())
 
-            if self.n >= 3:
-                delta = f.isf(q=self.alpha, dfn=1, dfd=self.n-1)
-                _, self.duals = sqp(
-                        f=lambda p: Online.CI.dual(p, 1, betastar, delta, self.n, datagen),
-                        gradf=lambda p: Online.CI.jacdual(p, 1, betastar, delta, self.n, datagen),
-                        hessf=lambda p: Online.CI.hessdual(p, 1, betastar, delta, self.n, datagen),
-                        E=self.consE,
-                        d=self.d,
-                        x0=self.duals,
-                        strict=True,
-                        maxiter=1
-                )
-                self.stats = Online.CI.sumstats(
-                        self.duals, 
-                        1, 
-                        self.mle.betastar * self.mle.n,
-                        delta,
-                        self.n,
-                        datagen
-                )
+            from pprint import pformat
+            assert all(self.wmin <= w + 1e-4 and w <= self.wmax + 1e-4
+                       for c, w, _ in datagen()
+                       if c > 0), pformat({
+                           'self.wmin': self.wmin,
+                           'self.wmax': self.wmax,
+                           'wmax': max(w for _, w, _ in datagen()),
+                           'wmin': min(w for _, w, _ in datagen()),
+                           'self.wmin <= wmin': self.wmin <= min(w for _, w, _ in datagen()),
+                           'self.wmax >= wmax': self.wmax >= max(w for _, w, _ in datagen()),
+                           })
 
+            if self.n >= 3 and any(w > 0 for c, w, _ in datagen() if c > 0):
+                try:
+                    delta = f.isf(q=self.alpha, dfn=1, dfd=self.n-1)
+                    _, self.duals = sqp(
+                            f=lambda p: Online.CI.dual(p, 1, betastar, delta, self.n, datagen),
+                            gradf=lambda p: Online.CI.jacdual(p, 1, betastar, delta, self.n, datagen),
+                            hessf=lambda p: Online.CI.hessdual(p, 1, betastar, delta, self.n, datagen),
+                            E=self.consE,
+                            d=self.d,
+                            x0=self.duals,
+                            strict=True,
+                            maxiter=1
+                    )
+                    self.stats = Online.CI.sumstats(
+                            self.duals,
+                            1,
+                            self.mle.betastar * self.mle.n,
+                            delta,
+                            self.n,
+                            datagen
+                    )
+                except:
+                    from pprint import pformat
+                    print(pformat({
+                        'data': list(datagen()),
+                        'E': self.consE,
+                        'd': self.d,
+                        'x0': self.duals,
+                        'wmin': self.wmin,
+                        'wmax': self.wmax,
+                    }), flush=True)
+                    raise
+                    self.stats = None
 
-        def getduals(self, datagen):
+        def getsoln(self, datagen):
             from scipy.stats import f
 
             if self.stats is not None:
                 gamma = self.duals[0]
                 beta = self.duals[1]
                 kappa = self.stats[3]
-                return { 
+                return {
                     'qfunc': lambda c, w, r: (
                         c * kappa / (gamma + beta * w + w * r)
                     ),
@@ -300,7 +344,7 @@ class Online:
             else:
                 beta = self.mle.betastar
                 n = self.mle.n
-                return { 
+                return {
                     'qfunc': lambda c, w, r: (
                      (c / n) / (beta * (w - 1) + 1)
                     ),
