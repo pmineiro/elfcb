@@ -84,7 +84,7 @@ This is an "online" (in the computationally incremental sense) dual update strat
 ('Cover 10', Counter({'mle': 18, 'tie': 17, 'base': 5}))
 ('Cover 32', Counter({'tie': 18, 'mle': 17, 'base': 5}))
 ```
-* ```make learningshootoutonlinegt10class`` will (eventually) produce results analogous to the first column of Table 5.  It equals or exceeds the batch strategy across the board. 
+* ```make learningshootoutonlinegt10class``` will (eventually) produce results analogous to the first column of Table 5.  It equals or exceeds the batch strategy across the board. 
 ```console
 (elfcb) pmineiro@PMINEIRO-26% make learningshootoutonlinegt10class
 ./do-learning-shootout.py --dirname gt10class --online
