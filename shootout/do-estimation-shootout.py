@@ -3,10 +3,10 @@
 class ClippedIPS:
     @staticmethod
     def estimate(data, **kwargs):
-        import numpy as np 
+        import numpy as np
         n = sum(c for c, _, _ in data)
         return 0.5 if n == 0 else np.clip(sum(c*w*r for c, w, r in data) / n, a_min=0, a_max=1)
-    
+
 class SNIPS:
     @staticmethod
     def estimate(data, **kwargs):
@@ -19,7 +19,7 @@ class Dataset(object):
         import numpy
 
         state = numpy.random.RandomState(lineseed)
-        
+
         self.path = path
         with gzip.open(self.path, 'rb') as f:
             data = f.read().decode("ascii")
@@ -43,7 +43,7 @@ class Dataset(object):
 
     def metadata(self):
         import re
-        
+
         m = re.search('ds_(\d+)_(\d+).vw.gz', self.path)
         if m is None:
             return { 'id': None, 'numclasses': 0 }
@@ -75,16 +75,16 @@ def make_historical_policy(data, actionseed, vwextraargs):
     )
     vw = pyvw.vw(vwargs)
     learnlog, _, _ = data.splits()
-    
+
     state = numpy.random.RandomState(actionseed)
-    
+
     for _ in range(1):
         for i, line in enumerate(data, 1):
             if "|" not in line: continue
 
             mclabel, rest = line.split(' ', 1)
             label = int(mclabel)
-            
+
             ex = vw.example(rest)
             probs = numpy.array(vw.predict(ex, prediction_type=pylibvw.vw.pACTION_PROBS))
             probs = probs / numpy.sum(probs)
@@ -92,7 +92,7 @@ def make_historical_policy(data, actionseed, vwextraargs):
 
             action = state.choice(numclasses, p=probs)
             cost = 0 if 1+action == label else 1
-            
+
             extext = '{}:{}:{} {}'.format(1+action, cost, probs[action], rest)
 
             ex = vw.example(extext)
@@ -101,16 +101,16 @@ def make_historical_policy(data, actionseed, vwextraargs):
 
             if i >= learnlog:
                 break
-       
+
     del vw
-        
+
     return vwargs
 
-def importance_weighted_learn(vw, action, cost, probability, importance, features): 
+def importance_weighted_learn(vw, action, cost, probability, importance, features):
     if importance > 0:
         cbex = '{}:{}:{} {}'.format(1 + action, cost, min(1, probability / importance), features)
         ex = vw.example(cbex)
-        vw.learn(ex)        
+        vw.learn(ex)
         del ex
 
 def learn_pi(data, actionseed, passes):
@@ -118,17 +118,17 @@ def learn_pi(data, actionseed, passes):
     import numpy
     import pylibvw
     import os
-        
+
     learnlog, learnpi, _ = data.splits()
     numclasses = data.numclasses()
-    
+
     logvw = pyvw.vw('--quiet -i damodel{}'.format(os.getpid()))
     vw = pyvw.vw('--quiet -i damodel{} -f damodelx{}'.format(os.getpid(), os.getpid()))
 
     for p in range(passes):
         alldatums = []
         state = numpy.random.RandomState(actionseed)
-        
+
         for i, line in enumerate(data, 1):
             if "|" not in line: continue
 
@@ -136,8 +136,8 @@ def learn_pi(data, actionseed, passes):
                 continue
 
             if i > learnpi:
-                break         
-                
+                break
+
             mclabel, rest = line.split(' ', 1)
             label = int(mclabel)
 
@@ -154,12 +154,12 @@ def learn_pi(data, actionseed, passes):
             pred = numpy.argmax(probs)
             iw = 1 / logprobs[action] if action == pred else 0
             del ex
-            
-            importance_weighted_learn(vw, action, cost, logprobs[action], iw, rest) 
+
+            importance_weighted_learn(vw, action, cost, logprobs[action], iw, rest)
 
     del vw
     del logvw
-    
+
     return None
 
 def eval_pi(data, actionseed):
@@ -172,17 +172,17 @@ def eval_pi(data, actionseed):
     counts = defaultdict(int)
     countswithcvs = defaultdict(int)
     numclasses = data.numclasses()
-    
+
     state = numpy.random.RandomState(actionseed)
 
     logvw = pyvw.vw('--quiet -i damodel{}'.format(os.getpid()))
     vw = pyvw.vw('--quiet -i damodelx{}'.format(os.getpid()))
- 
+
     learnlog, learnpi, _ = data.splits()
 
     truepv = 0.0
     lineno = 0
-    
+
     for i, line in enumerate(data, 1):
         if "|" not in line: continue
 
@@ -276,16 +276,16 @@ def dofile(filename, lineseed, actionseed, passes, exploration):
                                               rangefn=rangefn)
             mlecv.append(snipsres*mlecvres[1]['vmax'] + (1 - snipsres)*mlecvres[1]['vmin'])
             truevals.append(truepv)
-    
+
         ips = numpy.array(ips)
         snips = numpy.array(snips)
         mle = numpy.array(mle)
         mlecv = numpy.array(mlecv)
         truevals = numpy.array(truevals)
 
-        ipsvsmle = numpy.mean(numpy.square(ips - truevals) 
+        ipsvsmle = numpy.mean(numpy.square(ips - truevals)
                               - numpy.square(mle - truevals))
-        ipsvsmlevar = numpy.std(numpy.square(ips - truevals) 
+        ipsvsmlevar = numpy.std(numpy.square(ips - truevals)
                                 - numpy.square(mle - truevals),
                                 ddof=1) / numpy.sqrt(len(ips))
 
@@ -294,9 +294,9 @@ def dofile(filename, lineseed, actionseed, passes, exploration):
                            'tie')
 
 
-        snipsvsmle = numpy.mean(numpy.square(snips - truevals) 
+        snipsvsmle = numpy.mean(numpy.square(snips - truevals)
                                 - numpy.square(mle - truevals))
-        snipsvsmlevar = numpy.std(numpy.square(snips - truevals) 
+        snipsvsmlevar = numpy.std(numpy.square(snips - truevals)
                                   - numpy.square(mle - truevals),
                                   ddof=1) / numpy.sqrt(len(snips))
         snipsvsmlewinloss = (
@@ -328,7 +328,7 @@ def doit(lineseed, actionseed, passes, dirname, exploration, poolsize):
     from collections import Counter
     from multiprocessing import Pool
 
-    # NB: maxtasksperchild avoids memory leaks 
+    # NB: maxtasksperchild avoids memory leaks
     pool = Pool(processes=poolsize, maxtasksperchild=1)
     results = []
 
@@ -413,7 +413,7 @@ for exploration in (
     Cover(10),
     Cover(32)
 ):
-    result = doit(args.lineseed, args.actionseed, args.passes, 
+    result = doit(args.lineseed, args.actionseed, args.passes,
                   args.dirname, exploration, args.poolsize)
 
     from pprint import pformat

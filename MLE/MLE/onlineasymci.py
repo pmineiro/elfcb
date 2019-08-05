@@ -1,4 +1,4 @@
-# somewhat cheesy, but remarkably robust: 
+# somewhat cheesy, but remarkably robust:
 # 1. approximate histogram of historical counts
 # 2. do one Newton step per datum
 
@@ -28,10 +28,20 @@ class Online:
 
             gw = self.gw(w)
             b = self.numbuckets * (gw - self.gwmin) / (self.gwmax - self.gwmin)
-            blo = int(floor(b))
-            bhi = int(ceil(b))
+            blo = max(int(floor(b)), 0)
+            bhi = min(int(ceil(b)), self.numbuckets)
             wlo = round(self.gwinv(self.gwmin + blo * (self.gwmax - self.gwmin) / self.numbuckets), 3)
-            whi = round(self.gwinv(self.gwmin + bhi * (self.gwmax - self.gwmin) / self.numbuckets), 3) 
+            whi = round(self.gwinv(self.gwmin + bhi * (self.gwmax - self.gwmin) / self.numbuckets), 3)
+#            from pprint import pformat
+#            assert wlo >= self.wmin and whi <= self.wmax, pformat({
+#                'blo': blo,
+#                'bhi': bhi,
+#                'numbuckets': self.numbuckets,
+#                'wlo': wlo,
+#                'whi': whi,
+#                'wmin': self.wmin,
+#                'wmax': self.wmax
+#                })
 
             rapprox = round(100*r)
 
@@ -74,7 +84,7 @@ class Online:
             self.betastar += -g / H
 
             self.betastar = max(self.betastar, -1 / (self.wmax - 1))
-            self.betastar = min(self.betastar, 1 / (1 - self.wmin)) 
+            self.betastar = min(self.betastar, 1 / (1 - self.wmin))
 
             return self.betastar * self.n
 
