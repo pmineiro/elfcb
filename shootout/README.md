@@ -2,31 +2,38 @@
 
 ## Estimation
 
-* ```make estimationshootout``` will (eventually) produce the results in Tables 1 and 4.
+* ```make estimationshootout``` will (eventually) produce the results in Tables 1 and 4.  'snipsvsmlecv' compares snips to the MLE with control variates, which is new since the paper.
 ```console
 (elfcb) pmineiro@PMINEIRO-253% make estimationshootout 
 ./do-estimation-shootout.py --dirname orig40
 ('EpsilonGreedy 0.05',
  {'ipsvsmle': Counter({'mle': 26, 'tie': 11, 'base': 3}),
-  'snipsvsmle': Counter({'tie': 29, 'mle': 10, 'base': 1})})
+  'snipsvsmle': Counter({'tie': 29, 'mle': 10, 'base': 1}),
+  'snipsvsmlecv': Counter({'tie': 32, 'mle': 8})})
 ('EpsilonGreedy 0.1',
  {'ipsvsmle': Counter({'mle': 24, 'tie': 13, 'base': 3}),
-  'snipsvsmle': Counter({'tie': 35, 'mle': 5})})
+  'snipsvsmle': Counter({'tie': 35, 'mle': 5}),
+  'snipsvsmlecv': Counter({'tie': 34, 'mle': 6})})
 ('EpsilonGreedy 0.25',
  {'ipsvsmle': Counter({'mle': 27, 'tie': 10, 'base': 3}),
-  'snipsvsmle': Counter({'tie': 38, 'mle': 2})})
+  'snipsvsmle': Counter({'tie': 38, 'mle': 2}),
+  'snipsvsmlecv': Counter({'tie': 37, 'mle': 3})})
 ('Bag 10',
  {'ipsvsmle': Counter({'tie': 20, 'mle': 11, 'base': 9}),
-  'snipsvsmle': Counter({'tie': 33, 'mle': 5, 'base': 2})})
+  'snipsvsmle': Counter({'tie': 33, 'mle': 5, 'base': 2}),
+  'snipsvsmlecv': Counter({'tie': 33, 'mle': 5, 'base': 2})})
 ('Bag 32',
  {'ipsvsmle': Counter({'mle': 18, 'tie': 15, 'base': 7}),
-  'snipsvsmle': Counter({'tie': 33, 'mle': 5, 'base': 2})})
+  'snipsvsmle': Counter({'tie': 33, 'mle': 5, 'base': 2}),
+  'snipsvsmlecv': Counter({'tie': 32, 'mle': 6, 'base': 2})})
 ('Cover 10',
  {'ipsvsmle': Counter({'tie': 15, 'mle': 14, 'base': 11}),
-  'snipsvsmle': Counter({'tie': 32, 'mle': 8})})
+  'snipsvsmle': Counter({'tie': 32, 'mle': 8}),
+  'snipsvsmlecv': Counter({'tie': 32, 'mle': 8})})
 ('Cover 32',
  {'ipsvsmle': Counter({'base': 16, 'tie': 13, 'mle': 11}),
-  'snipsvsmle': Counter({'tie': 29, 'base': 7, 'mle': 4})})
+  'snipsvsmle': Counter({'tie': 29, 'base': 7, 'mle': 4}),
+  'snipsvsmlecv': Counter({'tie': 30, 'base': 6, 'mle': 4})})
 ```
 
 ## Learning
@@ -68,3 +75,31 @@
 ('Cover 10', Counter({'tie': 32, 'mle': 5, 'base': 3}))
 ('Cover 32', Counter({'tie': 33, 'mle': 4, 'base': 3}))
  ```
+### Incremental Learning
+
+This is an "online" (in the computationally incremental sense) dual update strategy combined with learning.  It is not in the original paper.
+
+* ```make learningshootoutonlineorig40``` will (eventually) produce results analogous to the first column of Table 3.  Results with cover are particularly good compared to the batch strategy.
+```console
+(elfcb) pmineiro@PMINEIRO-132% make learningshootoutonlineorig40
+./do-learning-shootout.py --dirname orig40 --online
+('EpsilonGreedy 0.05', Counter({'mle': 17, 'base': 13, 'tie': 10}))
+('EpsilonGreedy 0.1', Counter({'base': 16, 'mle': 14, 'tie': 10}))
+('EpsilonGreedy 0.25', Counter({'tie': 17, 'mle': 14, 'base': 9}))
+('Bag 10', Counter({'tie': 20, 'base': 13, 'mle': 7}))
+('Bag 32', Counter({'tie': 20, 'base': 12, 'mle': 8}))
+('Cover 10', Counter({'mle': 18, 'tie': 17, 'base': 5}))
+('Cover 32', Counter({'tie': 18, 'mle': 17, 'base': 5}))
+```
+* ```make learningshootoutonlinegt10class``` will (eventually) produce results analogous to the first column of Table 5.  It equals or exceeds the batch strategy across the board.
+```console
+(elfcb) pmineiro@PMINEIRO-26% make learningshootoutonlinegt10class
+./do-learning-shootout.py --dirname gt10class --online
+('EpsilonGreedy 0.05', Counter({'mle': 31, 'base': 6, 'tie': 3}))
+('EpsilonGreedy 0.1', Counter({'mle': 32, 'tie': 4, 'base': 4}))
+('EpsilonGreedy 0.25', Counter({'mle': 37, 'tie': 2, 'base': 1}))
+('Bag 10', Counter({'mle': 28, 'tie': 7, 'base': 5}))
+('Bag 32', Counter({'mle': 30, 'tie': 6, 'base': 4}))
+('Cover 10', Counter({'mle': 33, 'tie': 4, 'base': 3}))
+('Cover 32', Counter({'mle': 32, 'tie': 5, 'base': 3}))
+```
