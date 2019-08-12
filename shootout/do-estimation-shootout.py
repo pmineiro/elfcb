@@ -227,7 +227,7 @@ def eval_pi(data, actionseed):
 
 # main
 
-def dofile(filename, lineseed, actionseed, passes, exploration):
+def dofile(filename, lineseed, actionseed, passes, exploration, challenger):
     try:
         import MLE.MLE
         import numpy
@@ -270,17 +270,18 @@ def dofile(filename, lineseed, actionseed, passes, exploration):
             ips.append(ClippedIPS.estimate(counts))
             snipsres = SNIPS.estimate(counts)
             snips.append(snipsres)
-            mleres = MLE.MLE.estimate(datagen=lambda: counts, wmin=0, wmax=wmax)
-            mle.append(snipsres*mleres[1]['vmax'] + (1 - snipsres)*mleres[1]['vmin'])
-            mlecvres = MLE.MLE.estimatewithcv(datagen=lambda: countswithcvs,
-                                              rangefn=rangefn)
-            mlecv.append(snipsres*mlecvres[1]['vmax'] + (1 - snipsres)*mlecvres[1]['vmin'])
+            if challenger == Challenger.MLE:
+                mleres = MLE.MLE.estimate(datagen=lambda: counts, wmin=0, wmax=wmax)
+                mle.append(snipsres*mleres[1]['vmax'] + (1 - snipsres)*mleres[1]['vmin'])
+            elif challenger == Challenger.MLECV:
+                mlecvres = MLE.MLE.estimatewithcv(datagen=lambda: countswithcvs,
+                                                  rangefn=rangefn)
+                mle.append(snipsres*mlecvres[1]['vmax'] + (1 - snipsres)*mlecvres[1]['vmin'])
             truevals.append(truepv)
 
         ips = numpy.array(ips)
         snips = numpy.array(snips)
         mle = numpy.array(mle)
-        mlecv = numpy.array(mlecv)
         truevals = numpy.array(truevals)
 
         ipsvsmle = numpy.mean(numpy.square(ips - truevals)
@@ -289,8 +290,8 @@ def dofile(filename, lineseed, actionseed, passes, exploration):
                                 - numpy.square(mle - truevals),
                                 ddof=1) / numpy.sqrt(len(ips))
 
-        ipsvsmlewinloss = ('mle' if ipsvsmle > max(1e-8, 2*ipsvsmlevar) else
-                           'base' if ipsvsmle < min(-1e-8, -2*ipsvsmlevar) else
+        ipsvsmlewinloss = (challenger.value if ipsvsmle > max(1e-8, 2*ipsvsmlevar) else
+                           'ips' if ipsvsmle < min(-1e-8, -2*ipsvsmlevar) else
                            'tie')
 
 
@@ -300,18 +301,8 @@ def dofile(filename, lineseed, actionseed, passes, exploration):
                                   - numpy.square(mle - truevals),
                                   ddof=1) / numpy.sqrt(len(snips))
         snipsvsmlewinloss = (
-                'mle' if snipsvsmle > max(1e-8, 2*snipsvsmlevar) else
-                'base' if snipsvsmle < min(-1e-8, -2*snipsvsmlevar) else
-                'tie')
-
-        snipsvsmlecv = numpy.mean(numpy.square(snips - truevals) 
-                                  - numpy.square(mlecv - truevals))
-        snipsvsmlecvvar = numpy.std(numpy.square(snips - truevals) 
-                                    - numpy.square(mlecv - truevals),
-                                    ddof=1) / numpy.sqrt(len(snips))
-        snipsvsmlecvwinloss = (
-                'mle' if snipsvsmlecv > max(1e-8, 2*snipsvsmlecvvar) else
-                'base' if snipsvsmlecv < min(-1e-8, -2*snipsvsmlecvvar) else
+                challenger.value if snipsvsmle > max(1e-8, 2*snipsvsmlevar) else
+                'snips' if snipsvsmle < min(-1e-8, -2*snipsvsmlevar) else
                 'tie')
 
     finally:
@@ -322,9 +313,9 @@ def dofile(filename, lineseed, actionseed, passes, exploration):
         except:
             pass
 
-    return ipsvsmlewinloss, snipsvsmlewinloss, snipsvsmlecvwinloss
+    return ipsvsmlewinloss, snipsvsmlewinloss
 
-def doit(lineseed, actionseed, passes, dirname, exploration, poolsize):
+def doit(lineseed, actionseed, passes, dirname, exploration, poolsize, challenger):
     from collections import Counter
     from multiprocessing import Pool
 
@@ -336,7 +327,8 @@ def doit(lineseed, actionseed, passes, dirname, exploration, poolsize):
                                        lineseed,
                                        actionseed,
                                        passes,
-                                       exploration))
+                                       exploration,
+                                       challenger))
              for fileno, filename in enumerate(all_data_files(dirname))
 # 	     if '1413_3' in filename
            ]
@@ -347,9 +339,8 @@ def doit(lineseed, actionseed, passes, dirname, exploration, poolsize):
     pool.close()
     pool.join()
 
-    return { 'ipsvsmle': Counter([ x[0] for x in results ]),
-             'snipsvsmle': Counter([ x[1] for x in results ]),
-             'snipsvsmlecv': Counter([ x[2] for x in results ]),
+    return { 'ipsvs{}'.format(challenger.value): Counter([ x[0] for x in results ]),
+             'snipsvs{}'.format(challenger.value): Counter([ x[1] for x in results ]),
            }
 
 class EpsilonGreedy:
@@ -393,15 +384,23 @@ class Cover:
 
 # main
 
+from enum import Enum
 import argparse
 
-parser = argparse.ArgumentParser(description='run CI shootout')
+class Challenger(Enum):
+    MLE = 'mle'
+    MLECV = 'mlecv'
+
+parser = argparse.ArgumentParser(description='run estimation shootout')
 parser.add_argument('--lineseed', type=int, default=45)
 parser.add_argument('--actionseed', type=int, default=2112)
 parser.add_argument('--passes', type=int, default=4)
 parser.add_argument('--poolsize', type=int, default=None)
 parser.add_argument('--dirname', type=str, required=True)
-
+parser.add_argument('--challenger',
+                    type=Challenger,
+                    choices=list(Challenger),
+                    default=Challenger.MLE)
 args = parser.parse_args()
 
 for exploration in (
@@ -414,7 +413,7 @@ for exploration in (
     Cover(32)
 ):
     result = doit(args.lineseed, args.actionseed, args.passes,
-                  args.dirname, exploration, args.poolsize)
+                  args.dirname, exploration, args.poolsize, args.challenger)
 
     from pprint import pformat
     print(pformat((str(exploration), result)), flush=True)

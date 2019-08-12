@@ -23,3 +23,12 @@ learningshootoutmlegt10class: MLE
 
 estimationshootout: MLE
 	./do-estimation-shootout.py --dirname orig40
+
+estimationshootoutcv: MLE
+	./do-estimation-shootout.py --dirname orig40 --challenger mlecv
+
+estimationshootoutgt10class: MLE
+	./do-estimation-shootout.py --dirname gt10class
+
+estimationshootoutgt10classcv: MLE
+	./do-estimation-shootout.py --dirname gt10class --challenger mlecv
