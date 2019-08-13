@@ -348,7 +348,11 @@ def dofile(filename, lineseed, actionseed, passes, exploration, challenger):
         # 95% for t-test with dof=60 => 2x std-dev
         # 90% for t-test with dof=5 => 2x std-dev
         for x in range(60):
-            make_cost_predictor(data, actionseed+x, passes)
+            make_cost_predictor(
+                    data,
+                    actionseed+x,
+                    passes if challenger == challenger.MLEDR else 0
+            )
             learn_pi(data, actionseed+x, passes)
             counts, truepv, countswithcvs, countswithdr = eval_pi(data, actionseed+x)
             ips.append(ClippedIPS.estimate(counts))
