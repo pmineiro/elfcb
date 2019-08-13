@@ -212,7 +212,7 @@ def learn_pi(data, actionseed, passes):
 
     return None
 
-def eval_pi(data, actionseed):
+def eval_pi(data, actionseed, challenger):
     from collections import defaultdict
     from vowpalwabbit import pyvw
     import numpy
@@ -230,7 +230,10 @@ def eval_pi(data, actionseed):
     vw = pyvw.vw('--quiet -i damodelx{}'.format(os.getpid()))
     costvws = []
     for index in range(numclasses):
-        costvw = pyvw.vw('--quiet -i dacost{}x{}'.format(os.getpid(), index))
+        if challenger == challenger.MLEDR:
+            costvw = pyvw.vw('--quiet -i dacost{}x{}'.format(os.getpid(), index))
+        else:
+            costvw = None
         costvws.append(costvw)
 
     learnlog, learnpi, _ = data.splits()
@@ -253,18 +256,24 @@ def eval_pi(data, actionseed):
         action = state.choice(numclasses, p=logprobs)
         del logex
 
-        costex = costvws[action].example(rest)
-        costlog = costvws[action].predict(costex)
-        del costex
+        if challenger == challenger.MLEDR:
+            costex = costvws[action].example(rest)
+            costlog = costvws[action].predict(costex)
+            del costex
+        else:
+            costlog = 0
 
         ex = vw.example(rest)
         probs = numpy.array(vw.predict(ex, prediction_type=pylibvw.vw.pACTION_PROBS))
         pred = numpy.argmax(probs)
         del ex
 
-        costex = costvws[pred].example(rest)
-        costpred = costvws[pred].predict(costex)
-        del costex
+        if challenger == challenger.MLEDR:
+            costex = costvws[pred].example(rest)
+            costpred = costvws[pred].predict(costex)
+            del costex
+        else:
+            costpred = 0
 
         truepv += 1.0 if 1+pred == label else 0.0
         lineno += 1
@@ -348,13 +357,10 @@ def dofile(filename, lineseed, actionseed, passes, exploration, challenger):
         # 95% for t-test with dof=60 => 2x std-dev
         # 90% for t-test with dof=5 => 2x std-dev
         for x in range(60):
-            make_cost_predictor(
-                    data,
-                    actionseed+x,
-                    passes if challenger == challenger.MLEDR else 0
-            )
+            if challenger == challenger.MLEDR:
+                make_cost_predictor(data, actionseed+x, passes)
             learn_pi(data, actionseed+x, passes)
-            counts, truepv, countswithcvs, countswithdr = eval_pi(data, actionseed+x)
+            counts, truepv, countswithcvs, countswithdr = eval_pi(data, actionseed+x, challenger)
             ips.append(ClippedIPS.estimate(counts))
             snipsres = SNIPS.estimate(counts)
             snips.append(snipsres)
@@ -398,15 +404,22 @@ def dofile(filename, lineseed, actionseed, passes, exploration, challenger):
                 'tie')
 
     finally:
-        try:
-            import os
-            os.remove("damodel{}".format(os.getpid()))
-            os.remove("damodelx{}".format(os.getpid()))
-            numactions = data.numclasses()
-            for index in range(numactions):
-                os.remove("dacost{}x{}".format(os.getpid(), index))
-        except:
-            pass
+        import os
+
+        def removeit(name):
+            try:
+                os.remove(name)
+            except:
+                pass
+
+        removeit("damodel{}".format(os.getpid()))
+        removeit("damodel{}.writing".format(os.getpid()))
+        removeit("damodelx{}".format(os.getpid()))
+        removeit("damodelx{}.writing".format(os.getpid()))
+        numactions = data.numclasses()
+        for index in range(numactions):
+            removeit("dacost{}x{}".format(os.getpid(), index))
+            removeit("dacost{}x{}.writing".format(os.getpid(), index))
 
     return ipsvsmlewinloss, snipsvsmlewinloss
 
