@@ -102,27 +102,15 @@ This is an "online" (in the computationally incremental sense) dual update strat
 
 This is new since the paper. The empirical likelihood model is augmented with additional constraints corresponding to random variables whose true expectation is known to be zero.  There are two variants.
 
-### Reward predictor control variate
+#### Reward predictor control variate
 
-Given a reward predictor $\hat{r}$, we can form a control variate $E_{(x, r) \sim D, a \sim h}\left[\frac{\pi(a|x)}{h(a|x)} \hat{r}(x, a)\right] = E_{(x, r) \sim D, a \sim \pi}\left[\hat{r}(x,a)\right]$.  Forcing the empirical likelihood latent distribution to obey this constraint is analogous to doubly robust estimation.  It provides substantial improvement, but note that the comparison strategies do not employ a reward predictor, so this is not an &ldquo;apples-to-apples&rdquo; comparison. 
+Given a reward predictor $\hat{r}$, we can form a control variate $E_{(x, r) \sim D, a \sim h}\left[\frac{\pi(a|x)}{h(a|x)} \hat{r}(x, a)\right] = E_{(x, r) \sim D, a \sim \pi}\left[\hat{r}(x,a)\right]$.  Forcing the empirical likelihood latent distribution to obey this constraint is analogous to doubly robust estimation.  It provides improvement, but note that the comparison strategies do not employ a reward predictor, so this is arguably not &ldquo;apples-to-apples&rdquo;.  Of course, the reward predictor here is only trained on the training set and not the evaluation set.
 ```console
 (elfcb) pmineiro@PMINEIRO-31% make estimationshootoutdr .../elfcb.mega/shootout
 ./do-estimation-shootout.py --dirname orig40 --challenger mledr
 ('EpsilonGreedy 0.05',
- {'ipsvsmledr': Counter({'mledr': 29, 'tie': 9, 'ips': 2}),
-  'snipsvsmledr': Counter({'tie': 25, 'mledr': 13, 'snips': 2})})
-('EpsilonGreedy 0.1',
- {'ipsvsmledr': Counter({'mledr': 24, 'tie': 11, 'ips': 5}),
-  'snipsvsmledr': Counter({'tie': 20, 'mledr': 18, 'snips': 2})})
-('EpsilonGreedy 0.25',
- {'ipsvsmledr': Counter({'mledr': 29, 'tie': 10, 'ips': 1}),
-  'snipsvsmledr': Counter({'tie': 20, 'mledr': 19, 'snips': 1})})
-('Bag 10',
- {'ipsvsmledr': Counter({'tie': 20, 'mledr': 14, 'ips': 6}),
-  'snipsvsmledr': Counter({'tie': 24, 'mledr': 16})})
-('Bag 32',
- {'ipsvsmledr': Counter({'mledr': 19, 'tie': 18, 'ips': 3}),
-  'snipsvsmledr': Counter({'tie': 25, 'mledr': 13, 'snips': 2})})
+ {'ipsvsmledr': Counter({'mledr': 25, 'tie': 12, 'ips': 3}),
+  'snipsvsmledr': Counter({'tie': 29, 'mledr': 11})})
 ...
 ```
 
