@@ -25,7 +25,7 @@ def estimatewithcv(datagen, rangefn, rmin=0, rmax=1, raiseonerr=False):
     assert n == num
 
     wscale = max(1, np.sqrt(sumwsq / n))
-    cvscale = np.maximum(1, np.sqrt(sumcvsq / n))
+    cvscale = np.maximum(1, np.atleast_1d(np.sqrt(sumcvsq / n)))
 
     # solve dual
 
