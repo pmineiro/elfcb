@@ -132,7 +132,7 @@ Given a reward predictor $\hat{r}$, we can form a control variate $E_{(x, r) \si
 
 #### Action control variates
 
-For each action a', we have $E_{(x,r) \sim D, a \sim h}\left[ \frac{\pi(a|x)}{h(a|x)} - \pi(a|x) \right | a=a' \right]$ (in English: the expected value of the importance weight given the logging policy h played action a' is equal to the prior probability that the evaluated policy \pi plays a').  These control variates do not use reward information, so this is an &ldquo;apples-to-apples&rdquo; comparison.  There is a modest lift.
+For each action a, we have $E_{(x,r) \sim D, a' \sim h}\left[ \frac{\pi(a'|x)}{h(a'|x)} 1_{a'=a} \right] = E_{(x,r) \sim D}\left[ \pi(a|x) \right ]$ (in English: the expected value of the importance weight for each action a is equal to the probability that the evaluated policy \pi plays a).  These control variates do not use reward information, so this is an &ldquo;apples-to-apples&rdquo; comparison.  There is a modest lift.
 ```console
 (elfcb) pmineiro@PMINEIRO-70% make estimationshootoutcv
 ./do-estimation-shootout.py --dirname orig40 --challenger mlecv
