@@ -25,9 +25,8 @@
  {'ipsvsmle': Counter({'tie': 15, 'mle': 14, 'ips': 11}),
   'snipsvsmle': Counter({'tie': 32, 'mle': 8})})
 ('Cover 32',
- {'ipsvsmle': Counter({'base': 16, 'tie': 13, 'mle': 11}),
-  'snipsvsmle': Counter({'tie': 29, 'base': 7, 'mle': 4}),
-  'snipsvsmlecv': Counter({'tie': 30, 'base': 6, 'mle': 4})})
+ {'ipsvsmle': Counter({'ips': 16, 'tie': 13, 'mle': 11}),
+  'snipsvsmle': Counter({'tie': 29, 'snips': 7, 'mle': 4})})
 ```
 
 ## Learning
@@ -104,14 +103,31 @@ This is new since the paper. The empirical likelihood model is augmented with ad
 
 #### Reward predictor control variate
 
-Given a reward predictor $\hat{r}$, we can form a control variate $E_{(x, r) \sim D, a \sim h}\left[\frac{\pi(a|x)}{h(a|x)} \hat{r}(x, a)\right] = E_{(x, r) \sim D, a \sim \pi}\left[\hat{r}(x,a)\right]$.  Forcing the empirical likelihood latent distribution to obey this constraint is analogous to doubly robust estimation.  It provides improvement, but note that the comparison strategies do not employ a reward predictor, so this is arguably not &ldquo;apples-to-apples&rdquo;.  Of course, the reward predictor here is only trained on the training set and not the evaluation set.
+Given a reward predictor $\hat{r}$, we can form a control variate $E_{(x, r) \sim D, a \sim h}\left[\frac{\pi(a|x)}{h(a|x)} \hat{r}(x, a)\right] = E_{(x, r) \sim D, a \sim \pi}\left[\hat{r}(x,a)\right]$.  Forcing the empirical likelihood latent distribution to obey this constraint is analogous to doubly robust estimation.  It provides improvement, but note that the comparison strategies do not employ a reward predictor, so this is arguably not &ldquo;apples-to-apples&rdquo;.
 ```console
-(elfcb) pmineiro@PMINEIRO-31% make estimationshootoutdr .../elfcb.mega/shootout
+(elfcb) pmineiro@PMINEIRO-31% make estimationshootoutdr
 ./do-estimation-shootout.py --dirname orig40 --challenger mledr
 ('EpsilonGreedy 0.05',
  {'ipsvsmledr': Counter({'mledr': 25, 'tie': 12, 'ips': 3}),
   'snipsvsmledr': Counter({'tie': 29, 'mledr': 11})})
-...
+('EpsilonGreedy 0.1',
+ {'ipsvsmledr': Counter({'mledr': 25, 'tie': 12, 'ips': 3}),
+  'snipsvsmledr': Counter({'tie': 30, 'mledr': 10})})
+('EpsilonGreedy 0.25',
+ {'ipsvsmledr': Counter({'mledr': 28, 'tie': 9, 'ips': 3}),
+  'snipsvsmledr': Counter({'tie': 29, 'mledr': 11})})
+('Bag 10',
+ {'ipsvsmledr': Counter({'tie': 21, 'mledr': 10, 'ips': 9}),
+  'snipsvsmledr': Counter({'tie': 32, 'mledr': 6, 'snips': 2})})
+('Bag 32',
+ {'ipsvsmledr': Counter({'mledr': 18, 'tie': 15, 'ips': 7}),
+  'snipsvsmledr': Counter({'tie': 31, 'mledr': 7, 'snips': 2})})
+('Cover 10',
+ {'ipsvsmledr': Counter({'mledr': 15, 'tie': 14, 'ips': 11}),
+  'snipsvsmledr': Counter({'tie': 32, 'mledr': 8})})
+('Cover 32',
+ {'ipsvsmledr': Counter({'ips': 16, 'tie': 13, 'mledr': 11}),
+  'snipsvsmledr': Counter({'tie': 29, 'snips': 6, 'mledr': 5})})
 ```
 
 #### Action control variates
@@ -138,7 +154,9 @@ For each action a', we have $E_{(x,r) \sim D, a \sim h}\left[ \frac{\pi(a|x)}{h(
 ('Cover 10',
  {'ipsvsmlecv': Counter({'mlecv': 15, 'tie': 13, 'ips': 12}),
   'snipsvsmlecv': Counter({'tie': 32, 'mlecv': 8})})
-...
+('Cover 32',
+ {'ipsvsmlecv': Counter({'ips': 15, 'tie': 14, 'mlecv': 11}),
+  'snipsvsmlecv': Counter({'tie': 30, 'snips': 6, 'mlecv': 4})})
 ```
 
 
