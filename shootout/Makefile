@@ -10,7 +10,7 @@ learningshootoutorig40: MLE
 	eval ./do-learning-shootout.py --dirname orig40 $(extraargs)
 
 learningshootoutonlineorig40: MLE
-	eval ./do-learning-shootout.py --dirname orig40 --online $(extraargs)
+	eval ./do-learning-shootout.py --dirname orig40 --challenger onlineci $(extraargs)
 
 learningshootoutmleorig40: MLE
 	eval ./do-learning-shootout.py --dirname orig40 --challenger mle $(extraargs)
@@ -19,7 +19,7 @@ learningshootoutgt10class: MLE
 	eval ./do-learning-shootout.py --dirname gt10class $(extraargs)
 
 learningshootoutonlinegt10class: MLE
-	eval ./do-learning-shootout.py --dirname gt10class --online $(extraargs)
+	eval ./do-learning-shootout.py --dirname gt10class --challenger onlineci $(extraargs)
 
 learningshootoutmlegt10class: MLE
 	eval ./do-learning-shootout.py --dirname gt10class --challenger mle $(extraargs)

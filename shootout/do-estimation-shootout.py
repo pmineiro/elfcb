@@ -296,7 +296,6 @@ def eval_pi(data, actionseed, challenger):
         )
         cvdata[(w, r, cvs)] += c
 
-    
     return ([(c, w, r) for (w, r), c in counts.items()],
             truepv/lineno,
             [(c, w, r, numpy.array(cvs)) for (w, r, cvs), c in cvdata.items()],
@@ -336,7 +335,6 @@ def dofile(filename, lineseed, actionseed, passes, exploration, challenger):
 
         def drrangefn(what=None):
             wmin = 0
-            numactions = data.numclasses()
             if what == 'wmin':
                 return wmin
             elif what == 'wmax':
@@ -499,6 +497,9 @@ class Challenger(Enum):
     MLE = 'mle'
     MLECV = 'mlecv'
     MLEDR = 'mledr'
+
+    def __str__(self):
+        return self.name.lower()
 
 parser = argparse.ArgumentParser(description='run estimation shootout')
 parser.add_argument('--lineseed', type=int, default=45)
