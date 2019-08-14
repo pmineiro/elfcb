@@ -78,6 +78,7 @@ eval ./do-learning-shootout.py --dirname gt10class --challenger mle
 ('EpsilonGreedy 0.1', Counter({'tie': 34, 'base': 4, 'mle': 2}))
 ('EpsilonGreedy 0.25', Counter({'tie': 36, 'base': 3, 'mle': 1}))
 ('Bag 10', Counter({'tie': 37, 'mle': 2, 'base': 1}))
+('Bag 32', Counter({'tie': 36, 'mle': 3, 'base': 1}))
 ...
  ```
 ### Incremental Learning
