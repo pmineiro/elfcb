@@ -18,7 +18,7 @@ class BaselineBatchDualSolver(BatchDualSolver):
         pass
 
     def infer(self, datum, *args, **kwargs):
-        return 1
+        return 1.0
 
 class MLEBatchDualSolver(BatchDualSolver):
     def __init__(self, *args, **kwargs):
@@ -41,7 +41,48 @@ class MLEBatchDualSolver(BatchDualSolver):
         try:
             return self.mle[1]['qfunc'](self.n, w, r)
         except:
-            return 0
+            return 0.0
+
+class MLEDRBatchDualSolver(BatchDualSolver):
+    def __init__(self, *args, **kwargs):
+        self.wmax = kwargs.pop('wmax')
+        super().__init__(*args, **kwargs)
+
+    def learn(self, data):
+        import MLE.MLE
+        import numpy
+        from collections import Counter
+
+        counts = Counter((round(w, 5), r, round(w * cl - cp, 3)) for (w, r, cl, cp) in data)
+
+        data = [ (c, w, r, cv) for (w, r, cv), c in counts.items() ]
+        self.n = sum(c for c, _, _, _ in data)
+
+        def drrangefn(what=None):
+            wmin = 0
+            wmax = self.wmax
+            if what == 'wmin':
+                return wmin
+            elif what == 'wmax':
+                return wmax
+            else:
+                def iter_func():
+                    for w in (wmin, wmax):
+                        yield (w, -1)
+                        yield (w, w)
+
+            return iter_func()
+
+        self.mle = MLE.MLE.estimatewithcv(datagen=lambda: data,
+                                          rangefn=drrangefn)
+
+    def infer(self, datum):
+        (w, r, cv) = datum
+        w = max(0, min(self.wmax, w))
+        try:
+            return self.mle[1]['qfunc'](self.n, w, r, cv)
+        except:
+            return 0.0
 
 class CIBatchDualSolver(BatchDualSolver):
     def __init__(self, *args, **kwargs):
@@ -69,7 +110,7 @@ class CIBatchDualSolver(BatchDualSolver):
             else:
                 return self.ci[1][0]['qfunc'](self.n, w, r)
         except:
-            return 0
+            return 0.0
 
 class OnlineSolver():
     def __init__(self, *args, **kwargs):
@@ -89,7 +130,7 @@ class BaselineOnlineSolver():
         pass
 
     def infer(self, datum, *args, **kwargs):
-        return 1
+        return 1.0
 
 class CIOnlineSolver():
     def __init__(self, *args, **kwargs):
@@ -184,7 +225,7 @@ def make_historical_policy(data, actionseed, vwextraargs):
 
     state = numpy.random.RandomState(actionseed)
 
-    for _ in range(1):
+    for _ in range(60):
         for i, line in enumerate(data, 1):
             if "|" not in line: continue
 
@@ -225,7 +266,7 @@ def importance_weighted_learn(vw, action, cost, importance, features):
         vw.learn(ex)
         del ex
 
-def learn_pi(data, actionseed, solver, passes, online):
+def make_cost_predictor(data, actionseed, passes):
     from vowpalwabbit import pyvw
     import numpy
     import pylibvw
@@ -235,18 +276,76 @@ def learn_pi(data, actionseed, solver, passes, online):
     numclasses = data.numclasses()
 
     logvw = pyvw.vw('--quiet -i damodel{}'.format(os.getpid()))
-    vw = pyvw.vw('--quiet -i damodel{} -f damodelx{}'.format(os.getpid(), os.getpid()))
+    costvws = []
+    for index in range(numclasses):
+        costvw = pyvw.vw('--quiet -f dacost{}x{} -b 20 '.format(os.getpid(), index))
+        costvws.append(costvw)
 
     for p in range(passes):
-        alldatums = []
+        state = numpy.random.RandomState(actionseed)
+
+        for i, line in enumerate(data, 1):
+            if "|" not in line: continue
+
+#            if i <= learnlog:
+#                continue
+
+            if i > learnpi:
+                break
+
+            mclabel, rest = line.split(' ', 1)
+            label = int(mclabel)
+
+            logex = logvw.example(rest)
+            logprobs = numpy.array(logvw.predict(logex, prediction_type=pylibvw.vw.pACTION_PROBS))
+            logprobs = logprobs / numpy.sum(logprobs)
+            del logex
+
+            action = state.choice(numclasses, p=logprobs)
+            cost = 0 if 1+action == label else 1
+
+            extext = '{} {}'.format(cost, rest)
+            costex = costvws[action].example(extext)
+            costvws[action].learn(costex)
+            del costex
+
+    while len(costvws):
+        thing = costvws.pop()
+        del thing
+    del logvw
+
+    return None
+
+def learn_pi(data, actionseed, solver, passes, challenger):
+    from vowpalwabbit import pyvw
+    import numpy
+    import pylibvw
+    import os
+
+    learnlog, learnpi, _ = data.splits()
+    numclasses = data.numclasses()
+    online = challenger.isOnline()
+
+    logvw = pyvw.vw('--quiet -i damodel{}'.format(os.getpid()))
+    vw = pyvw.vw('--quiet -i damodel{} -f damodelx{}'.format(os.getpid(), os.getpid()))
+    costvws = []
+    for index in range(numclasses):
+        if challenger.usesCostPredictor():
+            costvw = pyvw.vw('--quiet -i dacost{}x{}'.format(os.getpid(), index))
+        else:
+            costvw = None
+        costvws.append(costvw)
+
+    for p in range(passes):
+        alldata = []
         stages = ('online',) if online else ('dual', 'policy')
 
         for stage in stages:
             state = numpy.random.RandomState(actionseed)
 
             if stage == 'policy':
-                alldatums.reverse()
-                solver.learn([ (w, r) for (w, cost, r) in alldatums])
+                solver.learn(alldata)
+                del alldata
 
             for i, line in enumerate(data, 1):
                 if "|" not in line: continue
@@ -276,9 +375,32 @@ def learn_pi(data, actionseed, solver, passes, online):
                 del ex
 
                 if stage == 'dual':
-                    alldatums.append((iw, cost, reward))
+                    if challenger.usesCostPredictor():
+                        costex = costvws[action].example(rest)
+                        costlog = costvws[action].predict(costex)
+                        del costex
+
+                        costex = costvws[pred].example(rest)
+                        costpred = costvws[pred].predict(costex)
+                        del costex
+
+                        alldata.append((iw, reward, costlog, costpred))
+                    else:
+                        alldata.append((iw, reward))
                 elif stage == 'policy':
-                    modifiediw = iw * solver.infer((iw, reward))
+                    if challenger.usesCostPredictor():
+                        costex = costvws[action].example(rest)
+                        costlog = costvws[action].predict(costex)
+                        del costex
+
+                        costex = costvws[pred].example(rest)
+                        costpred = costvws[pred].predict(costex)
+                        del costex
+
+                        cv = iw * costlog - costpred
+                        modifiediw = iw * solver.infer((iw, reward, cv))
+                    else:
+                        modifiediw = iw * solver.infer((iw, reward))
                     importance_weighted_learn(vw, action, cost, modifiediw, rest)
                 elif stage == 'online':
                     datum = (iw, reward)
@@ -286,6 +408,9 @@ def learn_pi(data, actionseed, solver, passes, online):
                     modifiediw = iw * solver.infer(datum)
                     importance_weighted_learn(vw, action, cost, modifiediw, rest)
 
+    while len(costvws):
+        thing = costvws.pop()
+        del thing
     del vw
     del logvw
 
@@ -329,9 +454,10 @@ def eval_pi(data, actionseed):
 
 # main
 
-def dofile(filename, lineseed, actionseed, passes, challenger, exploration, online):
+def dofile(filename, lineseed, actionseed, passes, challenger, exploration):
     try:
         import numpy
+        numpy.seterr(all='raise')
 
         data = Dataset(lineseed, filename)
         vwextraargs = exploration.getvwextraargs()
@@ -344,13 +470,15 @@ def dofile(filename, lineseed, actionseed, passes, challenger, exploration, onli
         # 95% for t-test with dof=60 => 2x std-dev
         # 90% for t-test with dof=5 => 2x std-dev
         for x in range(60):
-            baseline = BaselineOnlineSolver(wmax=wmax) if online else BaselineBatchDualSolver(wmax=wmax)
-            learn_pi(data, actionseed+x, baseline, passes, online)
+            if challenger.usesCostPredictor():
+                make_cost_predictor(data, actionseed+x, passes)
+
+            baseline = challenger.baselinesolver(wmax=wmax)
+            learn_pi(data, actionseed+x, baseline, passes, challenger)
             bpvs.append(eval_pi(data, actionseed+x))
 
-            mle = CIOnlineSolver(wmax=wmax) if online else challenger.solver(wmax=wmax)
-
-            learn_pi(data, actionseed+x, mle, passes, online)
+            mle = challenger.solver(wmax=wmax)
+            learn_pi(data, actionseed+x, mle, passes, challenger)
             mlepvs.append(eval_pi(data, actionseed+x))
 
         bpvs = numpy.array(bpvs)
@@ -368,7 +496,7 @@ def dofile(filename, lineseed, actionseed, passes, challenger, exploration, onli
 #            }
 #        ), flush=True)
 
-        mlewinloss = ('mle' if deltasmean > max(1e-8, 2*deltastd) else
+        mlewinloss = (challenger.value if deltasmean > max(1e-8, 2*deltastd) else
                       'base' if deltasmean < min(-1e-8, -2*deltastd) else
                       'tie')
     finally:
@@ -384,10 +512,14 @@ def dofile(filename, lineseed, actionseed, passes, challenger, exploration, onli
         removeit("damodel{}.writing".format(os.getpid()))
         removeit("damodelx{}".format(os.getpid()))
         removeit("damodelx{}.writing".format(os.getpid()))
+        numactions = data.numclasses()
+        for index in range(numactions):
+            removeit("dacost{}x{}".format(os.getpid(), index))
+            removeit("dacost{}x{}.writing".format(os.getpid(), index))
 
     return mlewinloss
 
-def doit(lineseed, actionseed, passes, dirname, challenger, exploration, online, poolsize):
+def doit(lineseed, actionseed, passes, dirname, challenger, exploration, poolsize):
     from collections import Counter
     from multiprocessing import Pool
 
@@ -400,10 +532,9 @@ def doit(lineseed, actionseed, passes, dirname, challenger, exploration, online,
                                        actionseed,
                                        passes,
                                        challenger,
-                                       exploration,
-                                       online))
+                                       exploration))
              for fileno, filename in enumerate(all_data_files(dirname))
-#             if fileno < 1
+#             if fileno < 2
            ]
 
     for job in jobs:
@@ -461,14 +592,37 @@ import argparse
 class Challenger(Enum):
     CI = 'ci'
     MLE = 'mle'
+    MLEDR = 'mledr'
+    ONLINECI = 'onlineci'
 
     def __str__(self):
         return self.name.lower()
 
-    def solver(self, *args, **kwargs):
-        return CIBatchDualSolver(*args, **kwargs) if self == Challenger.CI else MLEBatchDualSolver(*args, **kwargs)
+    def usesCostPredictor(self):
+        return self == Challenger.MLEDR
 
-parser = argparse.ArgumentParser(description='run CI shootout')
+    def isOnline(self):
+        return self == Challenger.ONLINECI
+
+    def baselinesolver(self, *args, **kwargs):
+        if self == Challenger.ONLINECI:
+            return BaselineOnlineSolver(*args, **kwargs)
+
+        return BaselineBatchDualSolver(*args, **kwargs)
+
+    def solver(self, *args, **kwargs):
+        if self == Challenger.CI:
+            return CIBatchDualSolver(*args, **kwargs)
+        if self == Challenger.MLE:
+            return MLEBatchDualSolver(*args, **kwargs)
+        if self == Challenger.MLEDR:
+            return MLEDRBatchDualSolver(*args, **kwargs)
+        if self == Challenger.ONLINECI:
+            return CIOnlineSolver(*args, **kwargs)
+
+        assert False
+
+parser = argparse.ArgumentParser(description='run learning shootout')
 parser.add_argument('--lineseed', type=int, default=45)
 parser.add_argument('--actionseed', type=int, default=2112)
 parser.add_argument('--passes', type=int, default=4)
@@ -478,14 +632,8 @@ parser.add_argument('--challenger',
                     type=Challenger,
                     choices=list(Challenger),
                     default=Challenger.CI)
-parser.add_argument('--online',
-                    dest='online',
-                    default=False,
-                    action='store_true')
 
 args = parser.parse_args()
-
-assert args.challenger == Challenger.CI or not args.online
 
 for exploration in (
     EpsilonGreedy(0.05),
@@ -498,7 +646,6 @@ for exploration in (
 ):
     result = doit(args.lineseed, args.actionseed, args.passes,
                   args.dirname, args.challenger, exploration,
-                  args.online,
                   args.poolsize)
 
     from pprint import pformat
