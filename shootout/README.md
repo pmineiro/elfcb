@@ -34,39 +34,51 @@
  * ```make learningshootoutorig40``` will (eventually) produce the first column of results from Figure 3.
  ```console
 (elfcb) pmineiro@PMINEIRO-52% make learningshootoutorig40
-./do-learning-shootout.py --dirname orig40
-('EpsilonGreedy 0.05', Counter({'tie': 18, 'mle': 17, 'base': 5}))
-('EpsilonGreedy 0.1', Counter({'tie': 18, 'mle': 16, 'base': 6}))
-('EpsilonGreedy 0.25', Counter({'tie': 24, 'mle': 12, 'base': 4}))
-('Bag 10', Counter({'tie': 30, 'mle': 6, 'base': 4}))
-('Bag 32', Counter({'tie': 26, 'mle': 11, 'base': 3}))
-('Cover 10', Counter({'tie': 26, 'mle': 8, 'base': 6}))
-('Cover 32', Counter({'tie': 25, 'mle': 10, 'base': 5}))
+eval ./do-learning-shootout.py --dirname orig40
+('EpsilonGreedy 0.05', Counter({'tie': 18, 'mle': 12, 'base': 10}))
+('EpsilonGreedy 0.1', Counter({'tie': 18, 'mle': 17, 'base': 5}))
+('EpsilonGreedy 0.25', Counter({'tie': 20, 'mle': 16, 'base': 4}))
+('Bag 10', Counter({'mle': 20, 'tie': 18, 'base': 2}))
+('Bag 32', Counter({'tie': 30, 'mle': 7, 'base': 3}))
+('Cover 10', Counter({'tie': 22, 'mle': 16, 'base': 2}))
+('Cover 32', Counter({'tie': 25, 'mle': 15}))
 ```
+
+* ```make learningshootoutmleorig40``` shows using the point estimate rather than the lower bound for learning.  Not as good.
+```console
+(elfcb) pmineiro@PMINEIRO-4% make learningshootoutmleorig40
+eval ./do-learning-shootout.py --dirname orig40 --challenger mle
+('EpsilonGreedy 0.05', Counter({'tie': 26, 'mle': 8, 'base': 6}))
+('EpsilonGreedy 0.1', Counter({'tie': 22, 'mle': 15, 'base': 3}))
+('EpsilonGreedy 0.25', Counter({'tie': 37, 'base': 2, 'mle': 1}))
+...
+('Bag 32', Counter({'tie': 32, 'mle': 7, 'base': 1}))
+...
+('Cover 32', Counter({'tie': 32, 'mle': 8}))
+```
+
  * ```make learningshootoutgt10class``` will (eventually) produce the second column of results from Figure 3.
  ```console
  (elfcb) pmineiro@PMINEIRO-207% make learningshootoutgt10class
-./do-learning-shootout.py --dirname gt10class
-('EpsilonGreedy 0.05', Counter({'mle': 30, 'tie': 9, 'base': 1}))
-('EpsilonGreedy 0.1', Counter({'mle': 29, 'tie': 9, 'base': 2}))
-('EpsilonGreedy 0.25', Counter({'mle': 31, 'tie': 8, 'base': 1}))
-('Bag 10', Counter({'mle': 22, 'tie': 14, 'base': 4}))
-('Bag 32', Counter({'mle': 22, 'tie': 16, 'base': 2}))
-('Cover 10', Counter({'tie': 20, 'mle': 18, 'base': 2}))
-('Cover 32', Counter({'tie': 26, 'mle': 10, 'base': 4}))
+eval ./do-learning-shootout.py --dirname gt10class
+('EpsilonGreedy 0.05', Counter({'tie': 35, 'base': 3, 'mle': 2}))
+('EpsilonGreedy 0.1', Counter({'tie': 35, 'base': 4, 'mle': 1}))
+('EpsilonGreedy 0.25', Counter({'tie': 31, 'base': 8, 'mle': 1}))
+('Bag 10', Counter({'tie': 36, 'mle': 4}))
+('Bag 32', Counter({'tie': 39, 'mle': 1}))
+('Cover 10', Counter({'tie': 39, 'mle': 1}))
+...
  ```
  
  * ```make learningshootoutmlegt10class``` will (eventually) produce the first column of results from Table 5.
  ```console
  (elfcb) pmineiro@PMINEIRO-209% make -learningshootoutmlegt10class
-./do-learning-shootout.py --dirname gt10class --challenger mle
-('EpsilonGreedy 0.05', Counter({'tie': 25, 'mle': 9, 'base': 6}))
-('EpsilonGreedy 0.1', Counter({'tie': 29, 'base': 7, 'mle': 4}))
-('EpsilonGreedy 0.25', Counter({'tie': 26, 'base': 10, 'mle': 4}))
-('Bag 10', Counter({'tie': 31, 'mle': 5, 'base': 4}))
-('Bag 32', Counter({'tie': 30, 'base': 7, 'mle': 3}))
-('Cover 10', Counter({'tie': 32, 'mle': 5, 'base': 3}))
-('Cover 32', Counter({'tie': 33, 'mle': 4, 'base': 3}))
+eval ./do-learning-shootout.py --dirname gt10class --challenger mle
+('EpsilonGreedy 0.05', Counter({'tie': 31, 'base': 5, 'mle': 4}))
+('EpsilonGreedy 0.1', Counter({'tie': 34, 'base': 4, 'mle': 2}))
+('EpsilonGreedy 0.25', Counter({'tie': 36, 'base': 3, 'mle': 1}))
+('Bag 10', Counter({'tie': 37, 'mle': 2, 'base': 1}))
+...
  ```
 ### Incremental Learning
 
