@@ -51,7 +51,7 @@ eval ./do-learning-shootout.py --dirname orig40 --challenger mle
 ('EpsilonGreedy 0.05', Counter({'tie': 26, 'mle': 8, 'base': 6}))
 ('EpsilonGreedy 0.1', Counter({'tie': 22, 'mle': 15, 'base': 3}))
 ('EpsilonGreedy 0.25', Counter({'tie': 37, 'base': 2, 'mle': 1}))
-...
+('Bag 10', Counter({'tie': 27, 'mle': 12, 'base': 1}))
 ('Bag 32', Counter({'tie': 32, 'mle': 7, 'base': 1}))
 ...
 ('Cover 32', Counter({'tie': 32, 'mle': 8}))
