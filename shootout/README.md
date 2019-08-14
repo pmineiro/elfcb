@@ -116,6 +116,9 @@ This is new since the paper. The empirical likelihood model is augmented with ad
 #### Reward predictor control variate
 
 Given a reward predictor $\hat{r}$, we can form a control variate $E_{(x, r) \sim D, a \sim h}\left[\frac{\pi(a|x)}{h(a|x)} \hat{r}(x, a)\right] = E_{(x, r) \sim D, a \sim \pi}\left[\hat{r}(x,a)\right]$.  Forcing the empirical likelihood latent distribution to obey this constraint is analogous to doubly robust estimation.  It provides improvement, but note that the comparison strategies do not employ a reward predictor, so this is arguably not &ldquo;apples-to-apples&rdquo;.
+
+##### Estimation
+Comparing to ```make estimationshootout``` above indicates improvement.
 ```console
 (elfcb) pmineiro@PMINEIRO-31% make estimationshootoutdr
 ./do-estimation-shootout.py --dirname orig40 --challenger mledr
@@ -142,9 +145,23 @@ Given a reward predictor $\hat{r}$, we can form a control variate $E_{(x, r) \si
   'snipsvsmledr': Counter({'tie': 29, 'snips': 6, 'mledr': 5})})
 ```
 
+##### Learning
+Comparing to ```make learningshootoutmleorig40``` indicates improvement.
+```console
+(elfcb) pmineiro@PMINEIRO-162% make learningshootoutmledrorig40 
+eval ./do-learning-shootout.py --dirname orig40 --challenger mledr
+('EpsilonGreedy 0.05', Counter({'tie': 25, 'mledr': 10, 'base': 5}))
+('EpsilonGreedy 0.1', Counter({'tie': 26, 'mledr': 12, 'base': 2}))
+('EpsilonGreedy 0.25', Counter({'tie': 33, 'mledr': 6, 'base': 1}))
+...
+```
+
 #### Action control variates
 
-For each action a, we have $E_{(x,r) \sim D, a' \sim h}\left[ \frac{\pi(a'|x)}{h(a'|x)} 1_{a'=a} \right] = E_{(x,r) \sim D}\left[ \pi(a|x) \right ]$ (in English: the expected value of the importance weight for each action a is equal to the probability that the evaluated policy \pi plays a).  These control variates do not use reward information, so this is an &ldquo;apples-to-apples&rdquo; comparison.  There is a modest lift.
+For each action a, we have $E_{(x,r) \sim D, a' \sim h}\left[ \frac{\pi(a'|x)}{h(a'|x)} 1_{a'=a} \right] = E_{(x,r) \sim D}\left[ \pi(a|x) \right ]$ (in English: the expected value of the importance weight for each action a is equal to the probability that the evaluated policy \pi plays a).  These control variates do not use reward information, so this is an &ldquo;apples-to-apples&rdquo; comparison.  
+
+##### Estimation
+Comparing to ```make estimationshootout``` above indicates improvement.
 ```console
 (elfcb) pmineiro@PMINEIRO-70% make estimationshootoutcv
 ./do-estimation-shootout.py --dirname orig40 --challenger mlecv
