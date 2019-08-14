@@ -67,7 +67,7 @@ eval ./do-learning-shootout.py --dirname gt10class
 ('Bag 10', Counter({'tie': 36, 'mle': 4}))
 ('Bag 32', Counter({'tie': 39, 'mle': 1}))
 ('Cover 10', Counter({'tie': 39, 'mle': 1}))
-...
+('Cover 32', Counter({'tie': 36, 'base': 3, 'mle': 1}))
  ```
  
  * ```make learningshootoutmlegt10class``` will (eventually) produce the first column of results from Table 5.
