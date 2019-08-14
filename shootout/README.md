@@ -44,7 +44,7 @@ eval ./do-learning-shootout.py --dirname orig40
 ('Cover 32', Counter({'tie': 25, 'mle': 15}))
 ```
 
-* ```make learningshootoutmleorig40``` shows using the point estimate rather than the lower bound for learning.  Not as good.
+* ```make learningshootoutmleorig40``` shows using the point estimate rather than the lower bound for learning.  The point estimate is helpful but not as good as using the lower bound.
 ```console
 (elfcb) pmineiro@PMINEIRO-4% make learningshootoutmleorig40
 eval ./do-learning-shootout.py --dirname orig40 --challenger mle
@@ -53,7 +53,7 @@ eval ./do-learning-shootout.py --dirname orig40 --challenger mle
 ('EpsilonGreedy 0.25', Counter({'tie': 37, 'base': 2, 'mle': 1}))
 ('Bag 10', Counter({'tie': 27, 'mle': 12, 'base': 1}))
 ('Bag 32', Counter({'tie': 32, 'mle': 7, 'base': 1}))
-...
+('Cover 10', Counter({'tie': 27, 'mle': 12, 'base': 1}))
 ('Cover 32', Counter({'tie': 32, 'mle': 8}))
 ```
 
