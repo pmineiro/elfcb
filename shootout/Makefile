@@ -12,6 +12,9 @@ learningshootoutorig40: MLE
 learningshootoutonlineorig40: MLE
 	eval ./do-learning-shootout.py --dirname orig40 --online $(extraargs)
 
+learningshootoutmleorig40: MLE
+	eval ./do-learning-shootout.py --dirname orig40 --challenger mle $(extraargs)
+
 learningshootoutgt10class: MLE
 	eval ./do-learning-shootout.py --dirname gt10class $(extraargs)
 

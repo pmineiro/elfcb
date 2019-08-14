@@ -30,14 +30,18 @@ class MLEBatchDualSolver(BatchDualSolver):
         from collections import Counter
 
         counts = Counter((round(w, 5), r) for (w, r) in data)
-        self.n = len(data)
 
         data = [ (c, w, r) for (w, r), c in counts.items() ]
+        self.n = sum(c for c, _, _ in data)
         self.mle = MLE.MLE.estimate(datagen=lambda: data, wmin=0, wmax=self.wmax)
 
     def infer(self, datum):
-        (w, _) = datum
-        return self.n / (self.mle[1]['betastar']*(w-1) + self.n)
+        (w, r) = datum
+        w = max(0, min(self.wmax, w))
+        try:
+            return self.mle[1]['qfunc'](self.n, w, r)
+        except:
+            return 0
 
 class CIBatchDualSolver(BatchDualSolver):
     def __init__(self, *args, **kwargs):
@@ -49,19 +53,23 @@ class CIBatchDualSolver(BatchDualSolver):
         from collections import Counter
 
         counts = Counter((round(w, 5), r) for (w, r) in data)
-        self.n = len(data)
         data = [ (c, w, r) for (w, r), c in counts.items() ]
+        self.n = sum(c for c, _, _ in data)
 
         self.ci = MLE.MLE.asymptoticconfidenceinterval(datagen=lambda: data, wmin=0, wmax=self.wmax, alpha=0.05)
         self.mle = MLE.MLE.estimate(datagen=lambda: data, wmin=0, wmax=self.wmax) if self.ci[1][0] is None else None
 
     def infer(self, datum):
         (w, r) = datum
+        w = max(0, min(self.wmax, w))
 
-        if self.ci[1][0] is None:
-            return self.n / (self.mle[1]['betastar']*(w-1) + self.n)
-        else:
-            return self.ci[1][0]['kappastar'] / (self.ci[1][0]['gammastar'] + self.ci[1][0]['betastar'] * w + w * r)
+        try:
+            if self.ci[1][0] is None:
+                return self.mle[1]['qfunc'](self.n, w, r)
+            else:
+                return self.ci[1][0]['qfunc'](self.n, w, r)
+        except:
+            return 0
 
 class OnlineSolver():
     def __init__(self, *args, **kwargs):
@@ -81,8 +89,7 @@ class BaselineOnlineSolver():
         pass
 
     def infer(self, datum, *args, **kwargs):
-        (w, r) = datum
-        return w
+        return 1
 
 class CIOnlineSolver():
     def __init__(self, *args, **kwargs):
@@ -96,15 +103,19 @@ class CIOnlineSolver():
         alpha = kwargs.pop('alpha', 0.05)
         self.happrox = MLE.MLE.Online.HistApprox(wmin=wmin, wmax=wmax, numbuckets=numbuckets)
         self.onlineci = MLE.MLE.Online.CI(wmin=wmin, wmax=wmax, rmin=rmin, rmax=rmax, alpha=alpha)
+        self.wmin = wmin
+        self.wmax = wmax
 
     def update(self, datum, *args, **kwargs):
         (w, r) = datum
+        w = max(self.wmin, min(self.wmax, w))
         self.happrox.update(1, w, r)
         self.onlineci.update(self.happrox.iterator)
 
     def infer(self, datum, *args, **kwargs):
         (w, r) = datum
-        return self.onlineci.getsoln(self.happrox.iterator)['qfunc'](1, w, r)
+        w = max(self.wmin, min(self.wmax, w))
+        return self.onlineci.getqfunc(self.happrox.iterator)['qfunc'](self.onlineci.n, w, r)
 
 class Dataset(object):
     def __init__(self, lineseed, path):
@@ -163,7 +174,8 @@ def make_historical_policy(data, actionseed, vwextraargs):
 
     numclasses = data.numclasses()
     assert numclasses > 0
-    vwargs = '--quiet -f damodel{} -b 20 --cb_type dr --cb_explore {} {}'.format(
+    # NB: l=0.1 due to factor of 10 in importance_weighted_learn
+    vwargs = '--quiet -f damodel{} -b 20 -l 0.1 --cb_type ips --cb_explore {} {}'.format(
                  os.getpid(), numclasses, vwextraargs
     )
 
@@ -200,9 +212,15 @@ def make_historical_policy(data, actionseed, vwextraargs):
 
     return vwargs
 
-def importance_weighted_learn(vw, action, cost, probability, importance, features):
+def importance_weighted_learn(vw, action, cost, importance, features):
     if importance > 0:
-        cbex = '{}:{}:{} {}'.format(1 + action, cost, min(1, probability / importance), features)
+        # NB: can't pass probabilities > 1 (vw rejects)
+        #     so scale everything by 10 and lower the learning rate by 10
+
+        cbex = '{}:{}:{} {}'.format(1 + action,
+                                    cost,
+                                    min(1.0, 1.0 / (10.0 * importance)),
+                                    features)
         ex = vw.example(cbex)
         vw.learn(ex)
         del ex
@@ -249,6 +267,7 @@ def learn_pi(data, actionseed, solver, passes, online):
 
                 action = state.choice(numclasses, p=logprobs)
                 cost = 0 if 1+action == label else 1
+                reward = 1 if 1+action == label else 0
 
                 ex = vw.example(rest)
                 probs = numpy.array(vw.predict(ex, prediction_type=pylibvw.vw.pACTION_PROBS))
@@ -257,18 +276,15 @@ def learn_pi(data, actionseed, solver, passes, online):
                 del ex
 
                 if stage == 'dual':
-                    reward = 1 if 1+action == label else 0
                     alldatums.append((iw, cost, reward))
                 elif stage == 'policy':
-                    w, cost, r = alldatums.pop()
-                    modifiediw = solver.infer((w, r))
-                    importance_weighted_learn(vw, action, cost, logprobs[action], modifiediw, rest)
+                    modifiediw = iw * solver.infer((iw, reward))
+                    importance_weighted_learn(vw, action, cost, modifiediw, rest)
                 elif stage == 'online':
-                    reward = 1 if 1+action == label else 0
                     datum = (iw, reward)
                     solver.update(datum)
-                    modifiediw = solver.infer(datum)
-                    importance_weighted_learn(vw, action, cost, logprobs[action], modifiediw, rest)
+                    modifiediw = iw * solver.infer(datum)
+                    importance_weighted_learn(vw, action, cost, modifiediw, rest)
 
     del vw
     del logvw
@@ -327,7 +343,6 @@ def dofile(filename, lineseed, actionseed, passes, challenger, exploration, onli
 
         # 95% for t-test with dof=60 => 2x std-dev
         # 90% for t-test with dof=5 => 2x std-dev
-#        for x in range(60):
         for x in range(60):
             baseline = BaselineOnlineSolver(wmax=wmax) if online else BaselineBatchDualSolver(wmax=wmax)
             learn_pi(data, actionseed+x, baseline, passes, online)
@@ -357,12 +372,18 @@ def dofile(filename, lineseed, actionseed, passes, challenger, exploration, onli
                       'base' if deltasmean < min(-1e-8, -2*deltastd) else
                       'tie')
     finally:
-        try:
-            import os
-            os.remove("damodel{}".format(os.getpid()))
-            os.remove("damodelx{}".format(os.getpid()))
-        except:
-            pass
+        import os
+
+        def removeit(name):
+            try:
+                os.remove(name)
+            except:
+                pass
+
+        removeit("damodel{}".format(os.getpid()))
+        removeit("damodel{}.writing".format(os.getpid()))
+        removeit("damodelx{}".format(os.getpid()))
+        removeit("damodelx{}.writing".format(os.getpid()))
 
     return mlewinloss
 
@@ -382,6 +403,7 @@ def doit(lineseed, actionseed, passes, dirname, challenger, exploration, online,
                                        exploration,
                                        online))
              for fileno, filename in enumerate(all_data_files(dirname))
+#             if fileno < 1
            ]
 
     for job in jobs:
