@@ -79,6 +79,7 @@ eval ./do-learning-shootout.py --dirname gt10class --challenger mle
 ('EpsilonGreedy 0.25', Counter({'tie': 36, 'base': 3, 'mle': 1}))
 ('Bag 10', Counter({'tie': 37, 'mle': 2, 'base': 1}))
 ('Bag 32', Counter({'tie': 36, 'mle': 3, 'base': 1}))
+('Cover 10', Counter({'tie': 37, 'mle': 2, 'base': 1}))
 ...
  ```
 ### Incremental Learning
@@ -109,7 +110,6 @@ This is an "online" (in the computationally incremental sense) dual update strat
 ('Cover 10', Counter({'mle': 33, 'tie': 4, 'base': 3}))
 ('Cover 32', Counter({'mle': 32, 'tie': 5, 'base': 3}))
 ```
-
 ### Control Variates
 
 This is new since the paper. The empirical likelihood model is augmented with additional constraints corresponding to random variables whose true expectation is known to be zero.  There are two variants.
@@ -155,7 +155,6 @@ eval ./do-learning-shootout.py --dirname orig40 --challenger mledr
 ('EpsilonGreedy 0.1', Counter({'tie': 26, 'mledr': 12, 'base': 2}))
 ('EpsilonGreedy 0.25', Counter({'tie': 33, 'mledr': 6, 'base': 1}))
 ('Bag 10', Counter({'tie': 24, 'mledr': 13, 'base': 3}))
-('Cover 10', Counter({'tie': 37, 'mle': 2, 'base': 1}))
 ...
 ```
 
