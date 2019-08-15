@@ -180,7 +180,7 @@ def estimatewithcv(datagen, rangefn, rmin=0, rmax=1, raiseonerr=False):
 
     betastar = xstar[0] * (num / wscale)
     deltastar = num * (xstar[1:] / cvscale)
-    qfunc = lambda c, w, r, cvs: np.asscalar(c / (num + betastar * (w - 1) + np.dot(deltastar, cvs)))
+    qfunc = lambda c, w, r, cvs: c / (num + betastar * (w - 1) + np.asscalar(np.dot(deltastar, cvs)))
 
     return vhat, {
         'vmin': vmin,
