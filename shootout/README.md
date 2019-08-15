@@ -154,6 +154,7 @@ eval ./do-learning-shootout.py --dirname orig40 --challenger mledr
 ('EpsilonGreedy 0.05', Counter({'tie': 25, 'mledr': 10, 'base': 5}))
 ('EpsilonGreedy 0.1', Counter({'tie': 26, 'mledr': 12, 'base': 2}))
 ('EpsilonGreedy 0.25', Counter({'tie': 33, 'mledr': 6, 'base': 1}))
+('Bag 10', Counter({'tie': 24, 'mledr': 13, 'base': 3}))
 ...
 ```
 
