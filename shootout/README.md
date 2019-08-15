@@ -80,7 +80,7 @@ eval ./do-learning-shootout.py --dirname gt10class
  
  * ```make learningshootoutmlegt10class``` 
  ```console
- (elfcb) pmineiro@PMINEIRO-209% make -learningshootoutmlegt10class
+ (elfcb) pmineiro@PMINEIRO-209% make learningshootoutmlegt10class
 eval ./do-learning-shootout.py --dirname gt10class --challenger mle
 ('EpsilonGreedy 0.05', Counter({'tie': 31, 'base': 5, 'mle': 4}))
 ('EpsilonGreedy 0.1', Counter({'tie': 34, 'base': 4, 'mle': 2}))
