@@ -177,7 +177,7 @@ eval ./do-learning-shootout.py --dirname gt10class --challenger mledr
 ('Bag 10', Counter({'tie': 34, 'mledr': 6}))
 ('Bag 32', Counter({'tie': 35, 'mledr': 3, 'base': 2}))
 ('Cover 10', Counter({'tie': 29, 'mledr': 11}))
-...
+('Cover 32', Counter({'tie': 36, 'mledr': 4}))
 ```
 
 #### Action control variates
