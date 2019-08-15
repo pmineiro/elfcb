@@ -168,6 +168,7 @@ eval ./do-learning-shootout.py --dirname gt10class --challenger mledr
 ('EpsilonGreedy 0.25', Counter({'tie': 34, 'base': 3, 'mledr': 3}))
 ('Bag 10', Counter({'tie': 34, 'mledr': 6}))
 ('Bag 32', Counter({'tie': 35, 'mledr': 3, 'base': 2}))
+('Cover 10', Counter({'tie': 29, 'mledr': 11}))
 ...
 ```
 
