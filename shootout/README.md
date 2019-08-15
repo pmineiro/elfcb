@@ -156,6 +156,19 @@ eval ./do-learning-shootout.py --dirname orig40 --challenger mledr
 ('EpsilonGreedy 0.25', Counter({'tie': 33, 'mledr': 6, 'base': 1}))
 ('Bag 10', Counter({'tie': 24, 'mledr': 13, 'base': 3}))
 ('Bag 32', Counter({'tie': 30, 'mledr': 9, 'base': 1}))
+('Cover 10', Counter({'tie': 28, 'mledr': 8, 'base': 4}))
+('Cover 32', Counter({'tie': 37, 'mledr': 2, 'base': 1}))
+```
+For completeness ...
+```console
+(elfcb) pmineiro@PMINEIRO-417% make learningshootoutmledrgt10class
+eval ./do-learning-shootout.py --dirname gt10class --challenger mledr
+('EpsilonGreedy 0.05', Counter({'tie': 37, 'mledr': 2, 'base': 1}))
+('EpsilonGreedy 0.1', Counter({'tie': 38, 'base': 2}))
+('EpsilonGreedy 0.25', Counter({'tie': 34, 'base': 3, 'mledr': 3}))
+('Bag 10', Counter({'tie': 34, 'mledr': 6}))
+('Bag 32', Counter({'tie': 35, 'mledr': 3, 'base': 2}))
+('Cover 10', Counter({'tie': 29, 'mledr': 11}))
 ...
 ```
 
