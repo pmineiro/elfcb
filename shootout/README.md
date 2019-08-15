@@ -1,5 +1,7 @@
 # Shootout
 
+Results from the paper comparing empirical likelihood to baselines for estimation and learning.
+
 ## Estimation
 
 * ```make estimationshootout``` will (eventually) produce the results in Tables 1 and 4.
@@ -44,7 +46,7 @@ eval ./do-learning-shootout.py --dirname orig40
 ('Cover 32', Counter({'tie': 25, 'mle': 15}))
 ```
 
-* ```make learningshootoutmleorig40``` shows using the point estimate rather than the lower bound for learning.  The point estimate is helpful but not as good as using the lower bound.
+* ```make learningshootoutmleorig40``` will (eventually) produce the second column of results from Figure 3.
 ```console
 (elfcb) pmineiro@PMINEIRO-4% make learningshootoutmleorig40
 eval ./do-learning-shootout.py --dirname orig40 --challenger mle
@@ -57,7 +59,13 @@ eval ./do-learning-shootout.py --dirname orig40 --challenger mle
 ('Cover 32', Counter({'tie': 32, 'mle': 8}))
 ```
 
- * ```make learningshootoutgt10class``` will (eventually) produce the second column of results from Figure 3.
+# Other Stuff
+
+Things not in the paper.
+
+### Alternative Set of Data Sets
+
+ * ```make learningshootoutgt10class``` 
  ```console
  (elfcb) pmineiro@PMINEIRO-207% make learningshootoutgt10class
 eval ./do-learning-shootout.py --dirname gt10class
@@ -70,7 +78,7 @@ eval ./do-learning-shootout.py --dirname gt10class
 ('Cover 32', Counter({'tie': 36, 'base': 3, 'mle': 1}))
  ```
  
- * ```make learningshootoutmlegt10class``` will (eventually) produce the first column of results from Table 5.
+ * ```make learningshootoutmlegt10class``` 
  ```console
  (elfcb) pmineiro@PMINEIRO-209% make -learningshootoutmlegt10class
 eval ./do-learning-shootout.py --dirname gt10class --challenger mle
