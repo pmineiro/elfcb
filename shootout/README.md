@@ -44,7 +44,7 @@ eval ./do-learning-shootout.py --dirname orig40
 ('Cover 32', Counter({'tie': 25, 'mle': 15}))
 ```
 
-* ```make learningshootoutmleorig40``` shows using the point estimate rather than the lower bound for learning.  Not as good.
+* ```make learningshootoutmleorig40``` shows using the point estimate rather than the lower bound for learning.  The point estimate is helpful but not as good as using the lower bound.
 ```console
 (elfcb) pmineiro@PMINEIRO-4% make learningshootoutmleorig40
 eval ./do-learning-shootout.py --dirname orig40 --challenger mle
@@ -53,7 +53,7 @@ eval ./do-learning-shootout.py --dirname orig40 --challenger mle
 ('EpsilonGreedy 0.25', Counter({'tie': 37, 'base': 2, 'mle': 1}))
 ('Bag 10', Counter({'tie': 27, 'mle': 12, 'base': 1}))
 ('Bag 32', Counter({'tie': 32, 'mle': 7, 'base': 1}))
-...
+('Cover 10', Counter({'tie': 27, 'mle': 12, 'base': 1}))
 ('Cover 32', Counter({'tie': 32, 'mle': 8}))
 ```
 
@@ -67,7 +67,7 @@ eval ./do-learning-shootout.py --dirname gt10class
 ('Bag 10', Counter({'tie': 36, 'mle': 4}))
 ('Bag 32', Counter({'tie': 39, 'mle': 1}))
 ('Cover 10', Counter({'tie': 39, 'mle': 1}))
-...
+('Cover 32', Counter({'tie': 36, 'base': 3, 'mle': 1}))
  ```
  
  * ```make learningshootoutmlegt10class``` will (eventually) produce the first column of results from Table 5.
@@ -78,7 +78,9 @@ eval ./do-learning-shootout.py --dirname gt10class --challenger mle
 ('EpsilonGreedy 0.1', Counter({'tie': 34, 'base': 4, 'mle': 2}))
 ('EpsilonGreedy 0.25', Counter({'tie': 36, 'base': 3, 'mle': 1}))
 ('Bag 10', Counter({'tie': 37, 'mle': 2, 'base': 1}))
-...
+('Bag 32', Counter({'tie': 36, 'mle': 3, 'base': 1}))
+('Cover 10', Counter({'tie': 37, 'mle': 2, 'base': 1}))
+('Cover 32', Counter({'tie': 39, 'base': 1}))
  ```
 ### Incremental Learning
 
@@ -108,7 +110,6 @@ This is an "online" (in the computationally incremental sense) dual update strat
 ('Cover 10', Counter({'mle': 33, 'tie': 4, 'base': 3}))
 ('Cover 32', Counter({'mle': 32, 'tie': 5, 'base': 3}))
 ```
-
 ### Control Variates
 
 This is new since the paper. The empirical likelihood model is augmented with additional constraints corresponding to random variables whose true expectation is known to be zero.  There are two variants.
@@ -116,6 +117,9 @@ This is new since the paper. The empirical likelihood model is augmented with ad
 #### Reward predictor control variate
 
 Given a reward predictor $\hat{r}$, we can form a control variate $E_{(x, r) \sim D, a \sim h}\left[\frac{\pi(a|x)}{h(a|x)} \hat{r}(x, a)\right] = E_{(x, r) \sim D, a \sim \pi}\left[\hat{r}(x,a)\right]$.  Forcing the empirical likelihood latent distribution to obey this constraint is analogous to doubly robust estimation.  It provides improvement, but note that the comparison strategies do not employ a reward predictor, so this is arguably not &ldquo;apples-to-apples&rdquo;.
+
+##### Estimation
+Comparing to ```make estimationshootout``` above indicates improvement.
 ```console
 (elfcb) pmineiro@PMINEIRO-31% make estimationshootoutdr
 ./do-estimation-shootout.py --dirname orig40 --challenger mledr
@@ -142,9 +146,25 @@ Given a reward predictor $\hat{r}$, we can form a control variate $E_{(x, r) \si
   'snipsvsmledr': Counter({'tie': 29, 'snips': 6, 'mledr': 5})})
 ```
 
+##### Learning
+Comparing to ```make learningshootoutmleorig40``` indicates improvement.
+```console
+(elfcb) pmineiro@PMINEIRO-162% make learningshootoutmledrorig40 
+eval ./do-learning-shootout.py --dirname orig40 --challenger mledr
+('EpsilonGreedy 0.05', Counter({'tie': 25, 'mledr': 10, 'base': 5}))
+('EpsilonGreedy 0.1', Counter({'tie': 26, 'mledr': 12, 'base': 2}))
+('EpsilonGreedy 0.25', Counter({'tie': 33, 'mledr': 6, 'base': 1}))
+('Bag 10', Counter({'tie': 24, 'mledr': 13, 'base': 3}))
+('Bag 32', Counter({'tie': 30, 'mledr': 9, 'base': 1}))
+...
+```
+
 #### Action control variates
 
-For each action a, we have $E_{(x,r) \sim D, a' \sim h}\left[ \frac{\pi(a'|x)}{h(a'|x)} 1_{a'=a} \right] = E_{(x,r) \sim D}\left[ \pi(a|x) \right ]$ (in English: the expected value of the importance weight for each action a is equal to the probability that the evaluated policy \pi plays a).  These control variates do not use reward information, so this is an &ldquo;apples-to-apples&rdquo; comparison.  There is a modest lift.
+For each action a, we have $E_{(x,r) \sim D, a' \sim h}\left[ \frac{\pi(a'|x)}{h(a'|x)} 1_{a'=a} \right] = E_{(x,r) \sim D}\left[ \pi(a|x) \right ]$ (in English: the expected value of the importance weight for each action a is equal to the probability that the evaluated policy \pi plays a).  These control variates do not use reward information, so this is an &ldquo;apples-to-apples&rdquo; comparison.  
+
+##### Estimation
+Comparing to ```make estimationshootout``` above indicates improvement.
 ```console
 (elfcb) pmineiro@PMINEIRO-70% make estimationshootoutcv
 ./do-estimation-shootout.py --dirname orig40 --challenger mlecv
