@@ -37,13 +37,13 @@ Results from the paper comparing empirical likelihood to baselines for estimatio
  ```console
 (elfcb) pmineiro@PMINEIRO-52% make learningshootoutorig40
 eval ./do-learning-shootout.py --dirname orig40
-('EpsilonGreedy 0.05', Counter({'tie': 18, 'mle': 12, 'base': 10}))
-('EpsilonGreedy 0.1', Counter({'tie': 18, 'mle': 17, 'base': 5}))
-('EpsilonGreedy 0.25', Counter({'tie': 20, 'mle': 16, 'base': 4}))
-('Bag 10', Counter({'mle': 20, 'tie': 18, 'base': 2}))
-('Bag 32', Counter({'tie': 30, 'mle': 7, 'base': 3}))
-('Cover 10', Counter({'tie': 22, 'mle': 16, 'base': 2}))
-('Cover 32', Counter({'tie': 25, 'mle': 15}))
+('EpsilonGreedy 0.05', Counter({'tie': 18, 'ci': 12, 'base': 10}))
+('EpsilonGreedy 0.1', Counter({'tie': 18, 'ci': 17, 'base': 5}))
+('EpsilonGreedy 0.25', Counter({'tie': 20, 'ci': 16, 'base': 4}))
+('Bag 10', Counter({'ci': 20, 'tie': 18, 'base': 2}))
+('Bag 32', Counter({'tie': 30, 'ci': 7, 'base': 3}))
+('Cover 10', Counter({'tie': 22, 'ci': 16, 'base': 2}))
+('Cover 32', Counter({'tie': 25, 'ci': 15}))
 ```
 
 * ```make learningshootoutmleorig40``` will (eventually) produce the second column of results from Figure 3.
