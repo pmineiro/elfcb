@@ -94,7 +94,7 @@ eval ./do-learning-shootout.py --dirname gt10class --challenger mle
 
 This is an "online" (in the computationally incremental sense) dual update strategy combined with learning.  It is not in the original paper.
 
-* ```make learningshootoutonlineorig40``` will (eventually) produce results analogous to the first column of Table 3.  Results with cover are particularly good compared to the batch strategy.
+* ```make learningshootoutonlineorig40``` will (eventually) produce results analogous to the first column of Table 3.  
 ```console
 (elfcb) pmineiro@PMINEIRO-132% make learningshootoutonlineorig40
 eval ./do-learning-shootout.py --dirname orig40 --challenger onlineci
@@ -105,7 +105,7 @@ eval ./do-learning-shootout.py --dirname orig40 --challenger onlineci
 ('Cover 10', Counter({'base': 21, 'tie': 19}))
 ('Cover 32', Counter({'tie': 26, 'base': 13, 'onlineci': 1}))
 ```
-* ```make learningshootoutonlinegt10class``` will (eventually) produce results analogous to the first column of Table 5.  It equals or exceeds the batch strategy across the board.
+* ```make learningshootoutonlinegt10class``` will (eventually) produce results analogous to the first column of Table 5.  
 ```console
 (elfcb) pmineiro@PMINEIRO-26% make learningshootoutonlinegt10class
 eval ./do-learning-shootout.py --dirname gt10class --challenger onlineci
