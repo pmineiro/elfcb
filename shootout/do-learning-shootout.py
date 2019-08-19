@@ -43,6 +43,64 @@ class MLEBatchDualSolver(BatchDualSolver):
         except:
             return 0.0
 
+class MLECVBatchDualSolver(BatchDualSolver):
+    def __init__(self, *args, **kwargs):
+        self.wmax = kwargs.pop('wmax')
+        self.numactions = kwargs.pop('numactions')
+        super().__init__(*args, **kwargs)
+
+    def learn(self, data):
+        import MLE.MLE
+        import numpy
+        from collections import Counter
+
+        counts = Counter((round(w, 5), r, pia) for (w, r, pia) in data)
+
+        data = [ (c, w, r, numpy.array(
+                  [ w - 1.0 if a == pia else 0.0
+                    for a in range(self.numactions)
+                  ]
+                 ))
+                 for (w, r, pia), c in counts.items()
+               ]
+        self.n = sum(c for c, _, _, _ in data)
+
+        def rangefn(what=None):
+            wmin = 0
+            wmax = self.wmax
+            numactions = self.numactions
+            if what == 'wmin':
+                return wmin
+            elif what == 'wmax':
+                return wmax
+            else:
+                def iter_func():
+                    # 1 cv is (w-1) and the rest are 0
+                    for index in range(numactions):
+                        for w in (wmin, wmax):
+                            cvvals = numpy.zeros(numactions, dtype='float64')
+                            cvvals[index] = w - 1.0
+                            yield (w, cvvals)
+
+            return iter_func()
+
+        self.mle = MLE.MLE.estimatewithcv(datagen=lambda: data,
+                                          rangefn=rangefn)
+
+    def infer(self, datum):
+        import numpy
+
+        (w, r, pia) = datum
+        w = max(0, min(self.wmax, w))
+        cv = numpy.array([ w - 1.0 if a == pia else 0.0
+                           for a in range(self.numactions)
+                         ]
+                        )
+        try:
+            return self.mle[1]['qfunc'](self.n, w, r, cv)
+        except:
+            return 0.0
+
 class MLEDRBatchDualSolver(BatchDualSolver):
     def __init__(self, *args, **kwargs):
         self.wmax = kwargs.pop('wmax')
@@ -109,6 +167,49 @@ class CIBatchDualSolver(BatchDualSolver):
                 return self.mle[1]['qfunc'](self.n, w, r)
             else:
                 return self.ci[1][0]['qfunc'](self.n, w, r)
+        except:
+            return 0.0
+
+class CIDRBatchDualSolver(BatchDualSolver):
+    def __init__(self, *args, **kwargs):
+        self.wmax = kwargs.pop('wmax')
+        super().__init__(*args, **kwargs)
+
+    def learn(self, data):
+        import MLE.MLE
+        from collections import Counter
+
+        counts = Counter((round(w, 5), r, round(w * cl - cp, 3)) for (w, r, cl, cp) in data)
+        data = [ (c, w, r, cv) for (w, r, cv), c in counts.items() ]
+        self.n = sum(c for c, _, _, _ in data)
+
+        def drrangefn(what=None):
+            wmin = 0
+            wmax = self.wmax
+            if what == 'wmin':
+                return wmin
+            elif what == 'wmax':
+                return wmax
+            else:
+                def iter_func():
+                    for w in (wmin, wmax):
+                        yield (w, -1)
+                        yield (w, w)
+
+            return iter_func()
+
+        self.ci = MLE.MLE.asymptoticconfidenceintervalwithcv(datagen=lambda: data, rangefn=drrangefn)
+        self.mle = MLE.MLE.estimatewithcv(datagen=lambda: data, rangefn=drrangefn) if self.ci[1][0] is None else None
+
+    def infer(self, datum):
+        (w, r, cv) = datum
+        w = max(0, min(self.wmax, w))
+
+        try:
+            if self.ci[1][0] is None:
+                return self.mle[1]['qfunc'](self.n, w, r, cv)
+            else:
+                return self.ci[1][0]['qfunc'](self.n, w, r, cv)
         except:
             return 0.0
 
@@ -215,8 +316,8 @@ def make_historical_policy(data, actionseed, vwextraargs):
 
     numclasses = data.numclasses()
     assert numclasses > 0
-    # NB: l=0.1 due to factor of 10 in importance_weighted_learn
-    vwargs = '--quiet -f damodel{} -b 20 -l 0.1 --cb_type ips --cb_explore {} {}'.format(
+    # NB: l=0.01 due to factor of 100 in importance_weighted_learn
+    vwargs = '--quiet -f damodel{} -b 20 -l 0.01 --cb_type ips --cb_explore {} {}'.format(
                  os.getpid(), numclasses, vwextraargs
     )
 
@@ -255,12 +356,15 @@ def make_historical_policy(data, actionseed, vwextraargs):
 
 def importance_weighted_learn(vw, action, cost, importance, features):
     if importance > 0:
+#        from pprint import pformat
+#        assert importance >= 0.01, pformat({'importance': importance})
+
         # NB: can't pass probabilities > 1 (vw rejects)
-        #     so scale everything by 10 and lower the learning rate by 10
+        #     so scale everything by 100 and lower the learning rate by 100
 
         cbex = '{}:{}:{} {}'.format(1 + action,
                                     cost,
-                                    min(1.0, 1.0 / (10.0 * importance)),
+                                    min(1.0, 1.0 / (100.0 * importance)),
                                     features)
         ex = vw.example(cbex)
         vw.learn(ex)
@@ -385,6 +489,8 @@ def learn_pi(data, actionseed, solver, passes, challenger):
                         del costex
 
                         alldata.append((iw, reward, costlog, costpred))
+                    elif challenger.usesPiAction():
+                        alldata.append((iw, reward, pred))
                     else:
                         alldata.append((iw, reward))
                 elif stage == 'policy':
@@ -399,6 +505,8 @@ def learn_pi(data, actionseed, solver, passes, challenger):
 
                         cv = iw * costlog - costpred
                         modifiediw = iw * solver.infer((iw, reward, cv))
+                    elif challenger.usesPiAction():
+                        modifiediw = iw * solver.infer((iw, reward, pred))
                     else:
                         modifiediw = iw * solver.infer((iw, reward))
                     importance_weighted_learn(vw, action, cost, modifiediw, rest)
@@ -473,11 +581,11 @@ def dofile(filename, lineseed, actionseed, passes, challenger, exploration):
             if challenger.usesCostPredictor():
                 make_cost_predictor(data, actionseed+x, passes)
 
-            baseline = challenger.baselinesolver(wmax=wmax)
+            baseline = challenger.baselinesolver(wmax=wmax, numactions=data.numclasses())
             learn_pi(data, actionseed+x, baseline, passes, challenger)
             bpvs.append(eval_pi(data, actionseed+x))
 
-            mle = challenger.solver(wmax=wmax)
+            mle = challenger.solver(wmax=wmax, numactions=data.numclasses())
             learn_pi(data, actionseed+x, mle, passes, challenger)
             mlepvs.append(eval_pi(data, actionseed+x))
 
@@ -534,7 +642,7 @@ def doit(lineseed, actionseed, passes, dirname, challenger, exploration, poolsiz
                                        challenger,
                                        exploration))
              for fileno, filename in enumerate(all_data_files(dirname))
-#             if fileno < 2
+#             if fileno < 1
            ]
 
     for job in jobs:
@@ -591,15 +699,20 @@ import argparse
 
 class Challenger(Enum):
     CI = 'ci'
+    CIDR = 'cidr'
     MLE = 'mle'
     MLEDR = 'mledr'
+    MLECV = 'mlecv'
     ONLINECI = 'onlineci'
 
     def __str__(self):
         return self.name.lower()
 
     def usesCostPredictor(self):
-        return self == Challenger.MLEDR
+        return self == Challenger.MLEDR or self == Challenger.CIDR
+
+    def usesPiAction(self):
+        return self == Challenger.MLECV
 
     def isOnline(self):
         return self == Challenger.ONLINECI
@@ -613,8 +726,12 @@ class Challenger(Enum):
     def solver(self, *args, **kwargs):
         if self == Challenger.CI:
             return CIBatchDualSolver(*args, **kwargs)
+        if self == Challenger.CIDR:
+            return CIDRBatchDualSolver(*args, **kwargs)
         if self == Challenger.MLE:
             return MLEBatchDualSolver(*args, **kwargs)
+        if self == Challenger.MLECV:
+            return MLECVBatchDualSolver(*args, **kwargs)
         if self == Challenger.MLEDR:
             return MLEDRBatchDualSolver(*args, **kwargs)
         if self == Challenger.ONLINECI:

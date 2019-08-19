@@ -210,7 +210,7 @@ class Online:
             self.wmax = wmax
             self.rmin = rmin
             self.rmax = rmax
-            self.duals = np.array([1.0, 0.0], dtype='float64')
+            self.duals = None
             self.alpha = alpha
             self.mle = Online.MLE(wmin, wmax)
             self.n = 0
@@ -225,6 +225,9 @@ class Online:
             self.n = sum(c for c, _, _ in datagen())
 
             if self.n >= 3:
+                if self.duals is None:
+                    self.duals = np.array([self.n, 0.0], dtype='float64')
+
                 sumwsq = sum(c * w * w for c, w, _ in datagen())
                 wscale = max(1.0, np.sqrt(sumwsq / self.n))
                 rscale = max(1.0, np.abs(self.rmin), np.abs(self.rmax))
@@ -252,6 +255,7 @@ class Online:
                         d=d,
                         x0=[self.duals[0], self.duals[1] * wscale],
                         strict=True,
+                        abscondfac=1e-3,
                         maxiter=1
                 )
                 self.duals[1] /= wscale

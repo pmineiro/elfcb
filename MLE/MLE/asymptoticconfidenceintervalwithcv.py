@@ -40,7 +40,7 @@ def asymptoticconfidenceintervalwithcv(datagen, rangefn,
     assert n == num
 
     wscale = max(1, np.sqrt(sumwsq / n))
-    cvscale = np.maximum(1, np.sqrt(sumcvsq / n))
+    cvscale = np.maximum(1, np.atleast_1d(np.sqrt(sumcvsq / n)))
     rscale = max(1.0, np.abs(rmin), np.abs(rmax))
 
     # solve dual
@@ -263,7 +263,7 @@ def asymptoticconfidenceintervalwithcv(datagen, rangefn,
         kappastar = (-rscale * fstar + gammastar + betastar) / num
         vbound = -sign * fstar
 
-        qfunc = lambda c, w, r, cvs: kappastar * c / (gammastar + betastar * w + np.dot(deltastar, cvs) + sign * w * r)
+        qfunc = lambda c, w, r, cvs: kappastar * c / (gammastar + betastar * w + np.asscalar(np.dot(deltastar, cvs)) + sign * w * r)
 
         from scipy.special import xlogy
 

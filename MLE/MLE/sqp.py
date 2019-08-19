@@ -2,7 +2,8 @@ def sqp(f, gradf, hessf, E, d, x0,
         gtol=1e-14, ftol=1e-14, xtol=1e-14, feastol=1e-6,
         condfac=1e-6, abscondfac=0, strict=False, maxiter=10000):
     import numpy
-    from cvxopt import matrix, solvers
+#    from cvxopt import matrix, solvers
+    from quadprog import solve_qp
     from scipy.linalg import null_space
     
     x = numpy.array(x0, dtype='float64')
@@ -39,8 +40,17 @@ def sqp(f, gradf, hessf, E, d, x0,
 
         try:
             Q = hessf(x)
-            soln = solvers.qp(matrix(Q), matrix(c), -matrix(E), -matrix(violation), kktsolver='ldl', options={'kktreg': condfac, 'show_progress': False})
-            dx = numpy.reshape(numpy.array(soln['x']), -1)
+            eigs = numpy.linalg.eigvalsh(Q)
+            mineig = numpy.min(eigs)
+            maxeig = numpy.max(eigs)
+            targetmineig = max(abscondfac, condfac*maxeig)
+            perturb = max(0, targetmineig - mineig)
+            dx = solve_qp(Q + perturb*numpy.eye(Q.shape[0]),
+                          -c,
+                          E.T,
+                          violation)[0]
+#            soln = solvers.qp(matrix(Q), matrix(c), -matrix(E), -matrix(violation), kktsolver='ldl', options={'kktreg': condfac, 'show_progress': False})
+#            dx = numpy.reshape(numpy.array(soln['x']), -1)
         except:
             from pprint import pformat
             print(pformat({ 'eigh(Q)': numpy.linalg.eigh(Q),
