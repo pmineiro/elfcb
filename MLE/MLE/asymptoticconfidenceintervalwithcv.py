@@ -27,7 +27,7 @@ def asymptoticconfidenceintervalwithcv(datagen, rangefn,
 
     sumwsq = 0
     for c, w, r, cvs in datagen():
-        sumcvsq = np.zeros_like(cvs)
+        sumcvsq = np.zeros_like(cvs, dtype='float64')
         break
 
     n = 0
