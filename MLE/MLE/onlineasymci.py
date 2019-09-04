@@ -59,7 +59,7 @@ class Online:
             return ((c, w, r / 100.0) for (w, r), c in self.hist.items())
 
     class MLE:
-        def __init__(self, wmin, wmax):
+        def __init__(self, wmin, wmax, rmin, rmax):
             self.betastar = 0
             self.wmin = wmin
             self.wmax = wmax
@@ -86,7 +86,17 @@ class Online:
             self.betastar = max(self.betastar, -1 / (self.wmax - 1))
             self.betastar = min(self.betastar, 1 / (1 - self.wmin))
 
-            return self.betastar * self.n
+        def getqfunc(self):
+            assert self.n > 0
+
+            beta = self.betastar
+            n = self.n
+            qfunc = lambda c, w, r: ((c / n) / (beta * (w - 1) + 1))
+
+            return {
+                'qfunc': qfunc,
+                'betastar': self.n * beta,
+            }
 
     class CI:
         from math import log
@@ -212,7 +222,7 @@ class Online:
             self.rmax = rmax
             self.duals = None
             self.alpha = alpha
-            self.mle = Online.MLE(wmin, wmax)
+            self.mle = Online.MLE(wmin, wmax, rmin, rmax)
             self.n = 0
             self.CI = None
 
@@ -221,7 +231,8 @@ class Online:
             from scipy.stats import f
             import numpy as np
 
-            betastar = self.mle.update(datagen)
+            self.mle.update(datagen)
+            betastar = self.mle.betastar * self.mle.n
             self.n = sum(c for c, _, _ in datagen())
 
             if self.n >= 3:
@@ -261,7 +272,7 @@ class Online:
                 self.duals[1] /= wscale
 
                 gammastar = self.duals[0]
-                betastar = self.duals[1] 
+                betastar = self.duals[1]
                 kappastar = (-rscale * fstar + gammastar + betastar) / self.n
                 vbound = -sign * rscale * fstar
 
@@ -276,18 +287,13 @@ class Online:
                             'ci': True
                 }
 
-        def getqfunc(self, datagen):
+        def getqfunc(self):
             assert self.n > 0
 
             if self.CI is not None:
                 return self.CI
             else:
-                beta = self.mle.betastar
-                n = self.mle.n
-                qfunc = lambda c, w, r: ((c / n) / (beta * (w - 1) + 1))
+                mleqfunc = self.mle.getqfunc()
+                mleqfunc['ci'] = False
 
-                return { 
-                    'qfunc': qfunc,
-                    'betastar': beta,
-                    'ci': False
-                }
+                return mleqfunc
