@@ -42,4 +42,5 @@ Here's a recipe.
 
 ```console
 (elfcb) pmineiro@PMINEIRO-14% pip install cvxpy jupyter jupyter-contrib-nbextensions jupyter-nbextensions-configurator matplotlib quadprog tqdm
+(elfcb) pmineiro@PMINEIRO-14% conda install -c conda-forge cvxopt
 ...

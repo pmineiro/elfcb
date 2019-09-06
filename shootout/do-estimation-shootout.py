@@ -106,12 +106,62 @@ def make_historical_policy(data, actionseed, vwextraargs):
 
     return vwargs
 
-def importance_weighted_learn(vw, action, cost, probability, importance, features):
+def importance_weighted_learn(vw, action, cost, importance, features):
     if importance > 0:
-        cbex = '{}:{}:{} {}'.format(1 + action, cost, min(1, probability / importance), features)
+        cbex = '{}:{}:{} {}'.format(1 + action, cost, min(1, 1.0 / importance), features)
         ex = vw.example(cbex)
         vw.learn(ex)
         del ex
+
+def make_cost_predictor(data, actionseed, passes):
+    from vowpalwabbit import pyvw
+    import numpy
+    import pylibvw
+    import os
+
+    learnlog, learnpi, _ = data.splits()
+    numclasses = data.numclasses()
+
+    logvw = pyvw.vw('--quiet -i damodel{}'.format(os.getpid()))
+    costvws = []
+    for index in range(numclasses):
+        costvw = pyvw.vw('--quiet -f dacost{}x{} -b 20 '.format(os.getpid(), index))
+        costvws.append(costvw)
+
+    for p in range(passes):
+        state = numpy.random.RandomState(actionseed)
+
+        for i, line in enumerate(data, 1):
+            if "|" not in line: continue
+
+            if i <= learnlog:
+                continue
+
+            if i > learnpi:
+                break
+
+            mclabel, rest = line.split(' ', 1)
+            label = int(mclabel)
+
+            logex = logvw.example(rest)
+            logprobs = numpy.array(logvw.predict(logex, prediction_type=pylibvw.vw.pACTION_PROBS))
+            logprobs = logprobs / numpy.sum(logprobs)
+            del logex
+
+            action = state.choice(numclasses, p=logprobs)
+            cost = 0 if 1+action == label else 1
+
+            extext = '{} {}'.format(cost, rest)
+            costex = costvws[action].example(extext)
+            costvws[action].learn(costex)
+            del costex
+
+    while len(costvws):
+        thing = costvws.pop()
+        del thing
+    del logvw
+
+    return None
 
 def learn_pi(data, actionseed, passes):
     from vowpalwabbit import pyvw
@@ -155,14 +205,14 @@ def learn_pi(data, actionseed, passes):
             iw = 1 / logprobs[action] if action == pred else 0
             del ex
 
-            importance_weighted_learn(vw, action, cost, logprobs[action], iw, rest)
+            importance_weighted_learn(vw, action, cost, iw, rest)
 
     del vw
     del logvw
 
     return None
 
-def eval_pi(data, actionseed):
+def eval_pi(data, actionseed, challenger):
     from collections import defaultdict
     from vowpalwabbit import pyvw
     import numpy
@@ -170,16 +220,25 @@ def eval_pi(data, actionseed):
     import os
 
     counts = defaultdict(int)
+    countswithcvs = defaultdict(int)
+    countswithdr = defaultdict(int)
     numclasses = data.numclasses()
 
     state = numpy.random.RandomState(actionseed)
 
     logvw = pyvw.vw('--quiet -i damodel{}'.format(os.getpid()))
     vw = pyvw.vw('--quiet -i damodelx{}'.format(os.getpid()))
+    costvws = []
+    for index in range(numclasses):
+        if challenger == challenger.MLEDR:
+            costvw = pyvw.vw('--quiet -i dacost{}x{}'.format(os.getpid(), index))
+        else:
+            costvw = None
+        costvws.append(costvw)
 
     learnlog, learnpi, _ = data.splits()
 
-    truepv = 0
+    truepv = 0.0
     lineno = 0
 
     for i, line in enumerate(data, 1):
@@ -197,25 +256,55 @@ def eval_pi(data, actionseed):
         action = state.choice(numclasses, p=logprobs)
         del logex
 
+        if challenger == challenger.MLEDR:
+            costex = costvws[action].example(rest)
+            costlog = costvws[action].predict(costex)
+            del costex
+        else:
+            costlog = 0
+
         ex = vw.example(rest)
         probs = numpy.array(vw.predict(ex, prediction_type=pylibvw.vw.pACTION_PROBS))
         pred = numpy.argmax(probs)
         del ex
 
-        truepv += 1 if 1+pred == label else 0
+        if challenger == challenger.MLEDR:
+            costex = costvws[pred].example(rest)
+            costpred = costvws[pred].predict(costex)
+            del costex
+        else:
+            costpred = 0
+
+        truepv += 1.0 if 1+pred == label else 0.0
         lineno += 1
 
-        iw = 1 / logprobs[action] if action == pred else 0
-        obspv = 1 if 1+action == label else 0
+        iw = 1.0 / logprobs[action] if action == pred else 0.0
+        obspv = 1.0 if 1+action == label else 0.0
         counts[(iw, obspv)] += 1
+        countswithcvs[(iw, obspv, pred)] += 1
+        countswithdr[(iw, obspv, costlog, costpred)] += 1
 
+    while len(costvws):
+        thing = costvws.pop()
+        del thing
     del vw
 
-    return [(c, w, r) for (w, r), c in counts.items()], truepv/lineno
+    cvdata = defaultdict(int)
+    for (w, r, pia), c in countswithcvs.items():
+        cvs = tuple(
+                   w - 1.0 if a == pia else 0.0 for a in range(numclasses)
+        )
+        cvdata[(w, r, cvs)] += c
+
+    return ([(c, w, r) for (w, r), c in counts.items()],
+            truepv/lineno,
+            [(c, w, r, numpy.array(cvs)) for (w, r, cvs), c in cvdata.items()],
+            [(c, w, r, numpy.array(w * cl - cp)) for (w, r, cl, cp), c in countswithdr.items()]
+           )
 
 # main
 
-def dofile(filename, lineseed, actionseed, passes, exploration):
+def dofile(filename, lineseed, actionseed, passes, exploration, challenger):
     try:
         import MLE.MLE
         import numpy
@@ -225,6 +314,39 @@ def dofile(filename, lineseed, actionseed, passes, exploration):
         make_historical_policy(data, actionseed, vwextraargs)
         wmax = exploration.getwmax(data.numclasses())
 
+        def rangefn(what=None):
+            wmin = 0
+            numactions = data.numclasses()
+            if what == 'wmin':
+                return wmin
+            elif what == 'wmax':
+                return wmax
+            else:
+                def iter_func():
+                    # from samplewithcvs():
+                    # 1 cv is (w-1) and the rest are 0
+                    for index in range(numactions):
+                        for w in (wmin, wmax):
+                            cvvals = numpy.zeros(numactions, dtype='float64')
+                            cvvals[index] = w - 1.0
+                            yield (w, cvvals)
+
+            return iter_func()
+
+        def drrangefn(what=None):
+            wmin = 0
+            if what == 'wmin':
+                return wmin
+            elif what == 'wmax':
+                return wmax
+            else:
+                def iter_func():
+                    for w in (wmin, wmax):
+                        yield (w, -1)
+                        yield (w, w)
+
+            return iter_func()
+
         ips = []
         snips = []
         mle = []
@@ -233,13 +355,24 @@ def dofile(filename, lineseed, actionseed, passes, exploration):
         # 95% for t-test with dof=60 => 2x std-dev
         # 90% for t-test with dof=5 => 2x std-dev
         for x in range(60):
+            if challenger == challenger.MLEDR:
+                make_cost_predictor(data, actionseed+x, passes)
             learn_pi(data, actionseed+x, passes)
-            counts, truepv = eval_pi(data, actionseed+x)
+            counts, truepv, countswithcvs, countswithdr = eval_pi(data, actionseed+x, challenger)
             ips.append(ClippedIPS.estimate(counts))
             snipsres = SNIPS.estimate(counts)
             snips.append(snipsres)
-            mleres = MLE.MLE.estimate(datagen=lambda: counts, wmin=0, wmax=wmax)
-            mle.append(snipsres*mleres[1]['vmax'] + (1 - snipsres)*mleres[1]['vmin'])
+            if challenger == Challenger.MLE:
+                mleres = MLE.MLE.estimate(datagen=lambda: counts, wmin=0, wmax=wmax)
+                mle.append(snipsres*mleres[1]['vmax'] + (1 - snipsres)*mleres[1]['vmin'])
+            elif challenger == Challenger.MLECV:
+                mlecvres = MLE.MLE.estimatewithcv(datagen=lambda: countswithcvs,
+                                                  rangefn=rangefn)
+                mle.append(snipsres*mlecvres[1]['vmax'] + (1 - snipsres)*mlecvres[1]['vmin'])
+            elif challenger == Challenger.MLEDR:
+                mlecvres = MLE.MLE.estimatewithcv(datagen=lambda: countswithdr,
+                                                  rangefn=drrangefn)
+                mle.append(snipsres*mlecvres[1]['vmax'] + (1 - snipsres)*mlecvres[1]['vmin'])
             truevals.append(truepv)
 
         ips = numpy.array(ips)
@@ -253,8 +386,8 @@ def dofile(filename, lineseed, actionseed, passes, exploration):
                                 - numpy.square(mle - truevals),
                                 ddof=1) / numpy.sqrt(len(ips))
 
-        ipsvsmlewinloss = ('mle' if ipsvsmle > max(1e-8, 2*ipsvsmlevar) else
-                           'base' if ipsvsmle < min(-1e-8, -2*ipsvsmlevar) else
+        ipsvsmlewinloss = (challenger.value if ipsvsmle > max(1e-8, 2*ipsvsmlevar) else
+                           'ips' if ipsvsmle < min(-1e-8, -2*ipsvsmlevar) else
                            'tie')
 
 
@@ -264,21 +397,31 @@ def dofile(filename, lineseed, actionseed, passes, exploration):
                                   - numpy.square(mle - truevals),
                                   ddof=1) / numpy.sqrt(len(snips))
         snipsvsmlewinloss = (
-                'mle' if snipsvsmle > max(1e-8, 2*snipsvsmlevar) else
-                'base' if snipsvsmle < min(-1e-8, -2*snipsvsmlevar) else
+                challenger.value if snipsvsmle > max(1e-8, 2*snipsvsmlevar) else
+                'snips' if snipsvsmle < min(-1e-8, -2*snipsvsmlevar) else
                 'tie')
 
     finally:
-        try:
-            import os
-            os.remove("damodel{}".format(os.getpid()))
-            os.remove("damodelx{}".format(os.getpid()))
-        except:
-            pass
+        import os
+
+        def removeit(name):
+            try:
+                os.remove(name)
+            except:
+                pass
+
+        removeit("damodel{}".format(os.getpid()))
+        removeit("damodel{}.writing".format(os.getpid()))
+        removeit("damodelx{}".format(os.getpid()))
+        removeit("damodelx{}.writing".format(os.getpid()))
+        numactions = data.numclasses()
+        for index in range(numactions):
+            removeit("dacost{}x{}".format(os.getpid(), index))
+            removeit("dacost{}x{}.writing".format(os.getpid(), index))
 
     return ipsvsmlewinloss, snipsvsmlewinloss
 
-def doit(lineseed, actionseed, passes, dirname, exploration, poolsize):
+def doit(lineseed, actionseed, passes, dirname, exploration, poolsize, challenger):
     from collections import Counter
     from multiprocessing import Pool
 
@@ -290,9 +433,10 @@ def doit(lineseed, actionseed, passes, dirname, exploration, poolsize):
                                        lineseed,
                                        actionseed,
                                        passes,
-                                       exploration))
+                                       exploration,
+                                       challenger))
              for fileno, filename in enumerate(all_data_files(dirname))
-#	     if '1413_3' in filename
+#  	     if '1413_3' in filename
            ]
 
     for job in jobs:
@@ -301,8 +445,8 @@ def doit(lineseed, actionseed, passes, dirname, exploration, poolsize):
     pool.close()
     pool.join()
 
-    return { 'ipsvsmle': Counter([ x[0] for x in results ]),
-             'snipsvsmle': Counter([ x[1] for x in results ])
+    return { 'ipsvs{}'.format(challenger.value): Counter([ x[0] for x in results ]),
+             'snipsvs{}'.format(challenger.value): Counter([ x[1] for x in results ]),
            }
 
 class EpsilonGreedy:
@@ -346,15 +490,27 @@ class Cover:
 
 # main
 
+from enum import Enum
 import argparse
 
-parser = argparse.ArgumentParser(description='run CI shootout')
+class Challenger(Enum):
+    MLE = 'mle'
+    MLECV = 'mlecv'
+    MLEDR = 'mledr'
+
+    def __str__(self):
+        return self.name.lower()
+
+parser = argparse.ArgumentParser(description='run estimation shootout')
 parser.add_argument('--lineseed', type=int, default=45)
 parser.add_argument('--actionseed', type=int, default=2112)
 parser.add_argument('--passes', type=int, default=4)
 parser.add_argument('--poolsize', type=int, default=None)
 parser.add_argument('--dirname', type=str, required=True)
-
+parser.add_argument('--challenger',
+                    type=Challenger,
+                    choices=list(Challenger),
+                    default=Challenger.MLE)
 args = parser.parse_args()
 
 for exploration in (
@@ -367,7 +523,7 @@ for exploration in (
     Cover(32)
 ):
     result = doit(args.lineseed, args.actionseed, args.passes,
-                  args.dirname, exploration, args.poolsize)
+                  args.dirname, exploration, args.poolsize, args.challenger)
 
     from pprint import pformat
     print(pformat((str(exploration), result)), flush=True)

@@ -26,7 +26,7 @@ class ControlledRangeVariance:
         # 
         # eliminate a 
         #
-        # g(b, c) = -1 - b - v*c - log sum exp(-1 - wi*b - wi*wi*c)
+        # g(b, c) = -b - v*c - log sum exp(-wi*b - wi*wi*c)
 
         self.wsupport = np.sort(np.array(wsupport))
 

@@ -2,7 +2,7 @@
 def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=False):
     import numpy as np
     from scipy.special import xlogy
-    from scipy.optimize import brentq, nnls
+    from scipy.optimize import brentq
     
     assert wmin >= 0
     assert wmin < 1
@@ -74,34 +74,7 @@ def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=Fal
         else:
             betastar = betahigh
 
-    # back out primal
-
-    walpha = ( wmin, wmax )
-
-    remone = 1 - sumofone(betastar)
-    remw = 1 - sumofw(betastar)
-    A = np.array([ [ 1, w ] for w in walpha ])
-    b = np.array([ remone, remw ])
-
-    qexlst, _ = nnls(A.T, b)
-
-    qex = { w: q for w, q in zip(walpha, qexlst) }
-    
-    if raiseonerr:
-        from pprint import pformat
-        assert (
-                    np.allclose(sumofone(betastar) + sum(q for _, q in qex.items()), 1)
-                and np.allclose(sumofw(betastar) + sum(w*q for w, q in qex.items()), 1)
-               ), pformat({
-                'betastar': betastar,
-                'bounds': (betamin, betamax),
-                'walpha': walpha,
-                'sumofone': sumofone(betastar) + sum(q for _, q in qex.items()),
-                'sumofw': sumofw(betastar) + sum(w*q for w, q in qex.items()),
-                'data': [ (c, w, r) for c, w, r in datagen() if c > 0 ],
-                'qstar': { (w, r): c/(betastar*(w-1)+num) for c, w, r in datagen() if c > 0 },
-                'qex': qex,
-            })
+    remw = max(0.0, 1.0 - sumofw(betastar))
 
     if censored:
         vnumhat = 0
@@ -116,18 +89,13 @@ def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=Fal
         if np.allclose(vdenomhat, 0):
             vhat = vmin = vmax = None
         else:
-            vmin = min([
-                ( (vnumhat + sum(w*q*rmin for w, q in qex.items())) /
-                  (vdenomhat + sum(w*q for w, q in qex.items()))
-                ),
-                ( vnumhat / vdenomhat ),
-            ])
-            vmax = max([
-                ( (vnumhat + sum(w*q*rmax for w, q in qex.items())) /
-                  (vdenomhat + sum(w*q for w, q in qex.items()))
-                ),
-                ( vnumhat / vdenomhat ),
-            ])
+            vnummin = vnumhat + remw * rmin
+            vdenommin = vdenomhat + remw
+            vmin = min([ vnummin / vdenommin, vnumhat / vdenomhat ])
+
+            vnummax = vnumhat + remw * rmax
+            vdenommax = vdenomhat + remw
+            vmax = max([ vnummax / vdenommax, vnumhat / vdenomhat ])
 
             vhat = 0.5*(vmin + vmax)
     else:
@@ -136,19 +104,14 @@ def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=Fal
             if c > 0:
                 vhat += w*r* c/((w - 1) * betastar + num)
 
-        vmin = vhat
-        vmax = vhat
-
-        for w, q in qex.items():
-            vmin += w*q*rmin
-            vhat += w*q*0.5*(rmax - rmin)
-            vmax += w*q*rmax
+        vmin = vhat + remw * rmin
+        vmax = vhat + remw * rmax
+        vhat += remw * (rmin + rmax) / 2.0
 
     return vhat, {
             'betastar': betastar,
             'vmin': vmin,
             'vmax': vmax,
-            'qex': qex,
             'num': num,
-            'qfunc': lambda c, w, r: c/(betastar*(w-1)+num),
+            'qfunc': lambda c, w, r: c / (num + betastar * (w - 1)),
            }

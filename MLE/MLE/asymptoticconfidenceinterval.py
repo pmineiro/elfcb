@@ -1,12 +1,9 @@
 # See JohnStyleProfile.ipynb for derivation, implementation notes, and test
 def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
-                                 rmin=0, rmax=1, raiseonerr=False,
-                                 warmstart=None):
-    from scipy.optimize import nnls
+                                 rmin=0, rmax=1, raiseonerr=False):
     from scipy.special import xlogy
     from scipy.stats import f
     from .estimate import estimate
-    from .sqp import sqp
     from math import exp, log
     import numpy as np
 
@@ -22,7 +19,11 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
         return ((rmin, rmax), (None, None))
     betamle = qmle['betastar']
 
-    delta = 0.5 * f.isf(q=alpha, dfn=1, dfd=num-1)
+    Delta = 0.5 * f.isf(q=alpha, dfn=1, dfd=num-1)
+
+    sumwsq = sum(c * w * w for c, w, _ in datagen())
+    wscale = max(1.0, np.sqrt(sumwsq / num))
+    rscale = max(1.0, np.abs(rmin), np.abs(rmax))
 
     # solve dual
 
@@ -43,50 +44,55 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
 
     def dualobjective(p, sign):
         gamma, beta = p
-        logcost = -delta
+        logcost = -Delta
 
         n = 0
         for c, w, r in datagen():
             if c > 0:
                 n += c
-                denom = gamma + beta * w + sign * w * r
-                mledenom = betamle * (w - 1) + num
+                denom = gamma + (beta + sign * wscale * r) * (w / wscale)
+                mledenom = num + betamle * (w - 1)
                 logcost += c * (logstar(denom) - logstar(mledenom))
+
+        assert n == num
 
         if n > 0:
             logcost /= n
 
-        return -exp(logcost) + gamma / n + beta / n
+        return (-n * exp(logcost) + gamma + beta / wscale) / rscale
 
     def jacdualobjective(p, sign):
         gamma, beta = p
-        logcost = -delta
+        logcost = -Delta
         jac = np.zeros_like(p)
 
         n = 0
         for c, w, r in datagen():
             if c > 0:
                 n += c
-                denom = gamma + beta * w + sign * w * r
-                mledenom = betamle * (w - 1) + num
+                denom = gamma + (beta + sign * wscale * r) * (w / wscale)
+                mledenom = num + betamle * (w - 1)
                 logcost += c * (logstar(denom) - logstar(mledenom))
+
                 jaclogcost = c * jaclogstar(denom)
                 jac[0] += jaclogcost
-                jac[1] += w * jaclogcost
+                jac[1] += jaclogcost * (w / wscale)
+
+        assert n == num
 
         if n > 0:
             logcost /= n
             jac /= n
 
-        jac *= -exp(logcost)
-        jac[0] += 1/n
-        jac[1] += 1/n
+        jac *= -(n / rscale) * exp(logcost)
+        jac[0] += 1 / rscale
+        jac[1] += 1 / (wscale * rscale)
 
         return jac
 
     def hessdualobjective(p, sign):
         gamma, beta = p
-        logcost = -delta
+        logcost = -Delta
         jac = np.zeros_like(p)
         hess = np.zeros((2,2))
 
@@ -94,17 +100,20 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
         for c, w, r in datagen():
             if c > 0:
                 n += c
-                denom = gamma + beta * w + sign * w * r
-                mledenom = betamle * (w - 1) + num
+                denom = gamma + (beta + sign * wscale * r) * (w / wscale)
+                mledenom = num + betamle * (w - 1)
                 logcost += c * (logstar(denom) - logstar(mledenom))
+
                 jaclogcost = c * jaclogstar(denom)
                 jac[0] += jaclogcost
-                jac[1] += w * jaclogcost
+                jac[1] += jaclogcost * (w / wscale)
 
                 hesslogcost = c * hesslogstar(denom)
                 hess[0][0] += hesslogcost
-                hess[0][1] += w * hesslogcost
-                hess[1][1] += w * w * hesslogcost
+                hess[0][1] += hesslogcost * (w / wscale)
+                hess[1][1] += hesslogcost * (w / wscale) * (w / wscale)
+
+        assert n == num
 
         if n > 0:
             logcost /= n
@@ -113,54 +122,12 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
 
         hess[1][0] = hess[0][1]
         hess += np.outer(jac, jac)
-        hess *= -exp(logcost)
+        hess *= -(n / rscale) * exp(logcost)
 
         return hess
 
-    def sumstats(p, sign):
-        gamma, beta = p
-        logcost = -delta
-
-        sumofone = 0
-        sumofw = 0
-        sumofwr = 0
-        n = 0
-        total = 0
-        for c, w, r in datagen():
-            if c > 0:
-                n += c
-                denom = gamma + beta * w + sign * w * r
-                mledenom = betamle * (w - 1) + num
-                logcost += c * (logstar(denom) - logstar(mledenom))
-
-                safe = safedenom(denom)
-
-                try:
-                    sumofone += c / safe
-                    sumofw += c*w / safe
-                    sumofwr += c*w*r / safe
-                except Exception as e:
-                    from pprint import pformat
-                    print(pformat({
-                        'e': e,
-                        'denom': denom,
-                        'safedenom': safe,
-                        'consE(p)-d': consE.dot(p)-d,
-                    }))
-                    raise
-
-        if n > 0:
-            logcost /= n
-
-        kappa = exp(logcost)
-        sumofone *= kappa
-        sumofw *= kappa
-        sumofwr *= kappa
-
-        return sumofone, sumofw, sumofwr, kappa
-
     consE = np.array([
-        [ 1/max(w, 1), min(w, 1) ]
+        [ 1, w / wscale ]
         for w in (wmin, wmax)
         for r in (rmin, rmax)
     ], dtype='float64')
@@ -175,65 +142,128 @@ def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
             continue
 
         sign = 1 - 2 * what
-        d = np.array([ -sign*min(w, 1)*r  + tiny/max(w, 1)
+        d = np.array([ -sign*w*r + tiny
                        for w in (wmin, wmax)
                        for r in (rmin, rmax)
                      ],
                      dtype='float64')
 
-        if warmstart is None:
-            gamma0, beta0 = 1.0, 0.5
-        else:
-            gamma0 = warmstart[what].get('gammastar', 1.0)
-            beta0 = warmstart[what].get('betastar', 0.5)
+        minsr = min(sign*rmin, sign*rmax)
+        gamma0, beta0 = ( num - qmle['betastar'] + 2 * tiny,
+                          wscale * (qmle['betastar'] - (1 + 1 / wscale) * minsr)
+                        )
 
-        fstar, [ gammastar, betastar ] = sqp(
-                f=lambda p: dualobjective(p, sign),
-                gradf=lambda p: jacdualobjective(p, sign),
-                hessf=lambda p: hessdualobjective(p, sign),
-                E=consE,
-                d=d,
-                x0=[ gamma0, beta0 ],
-                strict=True,
-                abscondfac=1e-12,
-        )
+        x0 = np.array([ gamma0, beta0 ])
 
-        x = [ gammastar, betastar ]
+        if raiseonerr:
+           active = np.nonzero(consE.dot(x0) - d < 0)[0]
+           from pprint import pformat
+           assert active.size == 0, pformat({
+                   'cons': consE.dot(x0) - d,
+                   'd': d,
+                   'consE.dot(x0)': consE.dot(x0),
+                   'active': active,
+                   'x0': x0,
+                   'qstarnocv[{}]'.format(what): qstarnocv[what],
+               })
 
-        # recover primal
+#        from .gradcheck import gradcheck, hesscheck
+#        gradcheck(f=lambda p: dualobjective(p, sign),
+#                  jac=lambda p: jacdualobjective(p, sign),
+#                  x=x0,
+#                  what='dualobjective')
+#
+#        hesscheck(jac=lambda p: jacdualobjective(p, sign),
+#                  hess=lambda p: hessdualobjective(p, sign),
+#                  x=x0,
+#                  what='jacdualobjective')
 
-        sumone, sumw, sumwr, kappastar = sumstats(x, sign)
+        # NB: things i've tried
+        #
+        # scipy.minimize method='slsqp': 3.78 it/s, sometimes fails
+        # sqp with quadprog: 1.75 it/s, sometimes fails
+        # sqp with cvxopt.qp: 1.05 s/it, reliable
+        # cvxopt.cp: 1.37 s/it, reliable <= seems most trustworthy
+        # minimize_ipopt: 4.85 s/it, reliable
 
-        remone = 1 - sumone
-        remw = 1 - sumw
+##       from ipopt import minimize_ipopt
+##       optresult = minimize_ipopt(
+##                           options={
+##                              'tol': 1e-12,
+#        from scipy.optimize import minimize
+#        optresult = minimize(method='slsqp',
+#                             options={
+#                               'ftol': 1e-12,
+#                               'maxiter': 1000,
+#                            },
+#                            fun=dualobjective,
+#                            x0=x0,
+#                            args=(sign,),
+#                            jac=jacdualobjective,
+#                            #hess=hessdualobjective,
+#                            constraints=[{
+#                                'type': 'ineq',
+#                                'fun': lambda x: consE.dot(x) - d,
+#                                'jac': lambda x: consE
+#                            }],
+#                   )
+#        if raiseonerr:
+#            from pprint import pformat
+#            assert optresult.success, pformat(optresult)
+#
+#        fstar, xstar = optresult.fun, optresult.x
 
-        if remone >= 0 and remw >= 0:
-            A = np.array([ [ 1, w ] for w in (wmin, wmax) ])
-            b = np.array([ remone, remw ])
+#        from .sqp import sqp
+#        fstar, xstar = sqp(
+#                f=lambda p: dualobjective(p, sign),
+#                gradf=lambda p: jacdualobjective(p, sign),
+#                hessf=lambda p: hessdualobjective(p, sign),
+#                E=consE,
+#                d=d,
+#                x0=x0,
+#                strict=True,
+#                condfac=1e-9,
+#        )
 
-            qexlst, _ = nnls(A.T, b)
-            rmissing = rmin if sign > 0 else rmax
+        from cvxopt import solvers, matrix
+        def F(x=None, z=None):
+            if x is None: return 0, matrix(x0)
+            p = np.reshape(np.array(x), -1)
+            f = dualobjective(p, sign)
+            jf = jacdualobjective(p, sign)
+            Df = matrix(jf).T
+            if z is None: return f, Df
+            hf = z[0] * hessdualobjective(p, sign)
+            H = matrix(hf, hf.shape)
+            return f, Df, H
 
-            qex = { (w, rmissing): v for w, v in zip((wmin, wmax), qexlst) }
-        else:
-            qex = {}
+        soln = solvers.cp(F,
+                          G=-matrix(consE, consE.shape),
+                          h=-matrix(d),
+                          options={'show_progress': False})
 
-        sumone += sum(q for _, q in qex.items())
-        sumw += sum(w*q for (w, _), q in qex.items())
-        sumwr += sum(w*r*q for (w, r), q in qex.items())
+        if raiseonerr:
+            from pprint import pformat
+            assert soln['status'] == 'optimal', pformat(soln)
+
+        xstar = soln['x']
+        fstar = soln['primal objective']
+
+        gammastar = xstar[0]
+        betastar = xstar[1] / wscale
+        kappastar = (-rscale * fstar + gammastar + betastar) / num
+
+        qfunc = lambda c, w, r, kappa=kappastar, gamma=gammastar, beta=betastar, s=sign: kappa * c / (gamma + (beta + s * r) * w)
+
+        vbound = -sign * rscale * fstar
 
         retvals.append(
-           (sumwr,
+           (vbound,
             {
-                'remone': remone,
-                'remw': remw,
-                'sumone': sumone,
-                'sumw': sumw,
                 'gammastar': gammastar,
                 'betastar': betastar,
                 'kappastar': kappastar,
-                'qex': qex,
-                'qfunc': lambda c, w, r: kappastar * c / (gammastar + betastar * w + sign * w * r)
+                'qfunc': qfunc,
             })
         )
 
