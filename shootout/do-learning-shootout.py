@@ -316,8 +316,8 @@ def make_historical_policy(data, actionseed, vwextraargs):
 
     numclasses = data.numclasses()
     assert numclasses > 0
-    # NB: l=0.01 due to factor of 100 in importance_weighted_learn
-    vwargs = '--quiet -f damodel{} -b 20 -l 0.01 --cb_type ips --cb_explore {} {}'.format(
+    # NB: l=0.1 due to factor of 10 in importance_weighted_learn
+    vwargs = '--quiet -f damodel{} -b 20 -l 0.1 --cb_type ips --cb_explore {} {}'.format(
                  os.getpid(), numclasses, vwextraargs
     )
 
@@ -356,15 +356,12 @@ def make_historical_policy(data, actionseed, vwextraargs):
 
 def importance_weighted_learn(vw, action, cost, importance, features):
     if importance > 0:
-#        from pprint import pformat
-#        assert importance >= 0.01, pformat({'importance': importance})
-
         # NB: can't pass probabilities > 1 (vw rejects)
-        #     so scale everything by 100 and lower the learning rate by 100
+        #     so scale everything by 10 and lower the learning rate by 10
 
         cbex = '{}:{}:{} {}'.format(1 + action,
                                     cost,
-                                    min(1.0, 1.0 / (100.0 * importance)),
+                                    min(1.0, 1.0 / (10.0 * importance)),
                                     features)
         ex = vw.example(cbex)
         vw.learn(ex)

@@ -106,9 +106,9 @@ def make_historical_policy(data, actionseed, vwextraargs):
 
     return vwargs
 
-def importance_weighted_learn(vw, action, cost, probability, importance, features):
+def importance_weighted_learn(vw, action, cost, importance, features):
     if importance > 0:
-        cbex = '{}:{}:{} {}'.format(1 + action, cost, min(1, probability / importance), features)
+        cbex = '{}:{}:{} {}'.format(1 + action, cost, min(1, 1.0 / importance), features)
         ex = vw.example(cbex)
         vw.learn(ex)
         del ex
@@ -205,7 +205,7 @@ def learn_pi(data, actionseed, passes):
             iw = 1 / logprobs[action] if action == pred else 0
             del ex
 
-            importance_weighted_learn(vw, action, cost, logprobs[action], iw, rest)
+            importance_weighted_learn(vw, action, cost, iw, rest)
 
     del vw
     del logvw
