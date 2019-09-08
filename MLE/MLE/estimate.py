@@ -14,11 +14,6 @@ def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=Fal
 
     # solve dual
 
-    def sumofone(beta):
-        return sum(c/((w - 1) * beta + num)
-                   for c, w, _ in datagen()
-                   if c > 0)
-
     def sumofw(beta):
         return sum((c * w)/((w - 1) * beta + num)
                    for c, w, _ in datagen()
@@ -48,31 +43,10 @@ def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=Fal
     gradmax = graddualobjective(betamax)
     if gradmin * gradmax < 0:
         betastar = brentq(f=graddualobjective, a=betamin, b=betamax)
+    elif gradmin < 0:
+        betastar = betamin
     else:
-        betalow = num / (1 - wmax)
-        if (    betamin <= betalow 
-            and sumofone(betalow) <= 1+1e-6 
-            and sumofw(betalow) <= 1+1e-6):
-            flow = dualobjective(betalow)
-        else:
-            flow = None
-
-        betahigh = num / (1 - wmin)
-        if (    betamax >= betahigh 
-            and sumofone(betahigh) <= 1+1e-6 
-            and sumofw(betahigh) <= 1+1e-6):
-            fhigh = dualobjective(betahigh)
-        else:
-            fhigh = None
-
-        if flow is None:
-            betastar = betahigh
-        elif fhigh is None:
-            betastar = betalow
-        elif flow > fhigh:
-            betastar = betalow
-        else:
-            betastar = betahigh
+        betastar = betamax
 
     remw = max(0.0, 1.0 - sumofw(betastar))
 
