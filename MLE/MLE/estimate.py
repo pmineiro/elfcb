@@ -1,7 +1,6 @@
 # See estimate.ipynb for derivation, implementation notes, and test
 def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=False):
     import numpy as np
-    from scipy.special import xlogy
     from scipy.optimize import brentq
     
     assert wmin >= 0
@@ -18,9 +17,6 @@ def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=Fal
         return sum((c * w)/((w - 1) * beta + num)
                    for c, w, _ in datagen()
                    if c > 0)
-
-    def dualobjective(beta):
-        return sum(xlogy(c, (w - 1) * beta + num) for c, w, _ in datagen())
 
     def graddualobjective(beta):
         return sum(c * (w - 1)/((w - 1) * beta + num) 
