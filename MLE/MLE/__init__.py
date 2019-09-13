@@ -5,3 +5,4 @@ from .asymptoticconfidenceintervalwithcv import asymptoticconfidenceintervalwith
 from .onlineasymci import Online
 from .gradcheck import gradcheck, hesscheck
 from .cressieread import CressieRead
+from .euclidean import Euclidean
