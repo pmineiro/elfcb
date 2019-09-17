@@ -2,7 +2,7 @@
 def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=False):
     import numpy as np
     from scipy.optimize import brentq
-    
+
     assert wmin >= 0
     assert wmin < 1
     assert wmax > 1
@@ -18,19 +18,30 @@ def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=Fal
                    for c, w, _ in datagen()
                    if c > 0)
 
+    # fun fact about the MLE:
+    #
+    # if \frac{1}{n} \sum_n w_n < 1 then \beta^* wants to be negative
+    # but as wmax \to \infty, lower bound on \beta^* is 0
+    # therefore the estimate becomes
+    #
+    # \hat{V}(\pi) = \left( \frac{1}{n} \sum_n w_n r_n \right) +
+    #                \left( 1 - \frac{1}{n} \sum_n w_n \right) \rho
+    #
+    # where \rho is anything between rmin and rmax
+
     def graddualobjective(beta):
-        return sum(c * (w - 1)/((w - 1) * beta + num) 
+        return sum(c * (w - 1)/((w - 1) * beta + num)
                    for c, w, _ in datagen()
                    if c > 0)
 
-    betamax = min( ((num - c) / (1 - w) 
-                    for c, w, _ in datagen() 
+    betamax = min( ((num - c) / (1 - w)
+                    for c, w, _ in datagen()
                     if w < 1 and c > 0 ),
                    default=num / (1 - wmin))
     betamax = min(betamax, num / (1 - wmin))
 
-    betamin = max( ((num - c) / (1 - w) 
-                    for c, w, _ in datagen() 
+    betamin = max( ((num - c) / (1 - w)
+                    for c, w, _ in datagen()
                     if w > 1 and c > 0 ),
                    default=num / (1 - wmax))
     betamin = max(betamin, num / (1 - wmax))
