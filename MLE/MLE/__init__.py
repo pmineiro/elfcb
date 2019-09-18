@@ -6,3 +6,4 @@ from .onlineasymci import Online
 from .gradcheck import gradcheck, hesscheck
 from .cressieread import CressieRead
 from .euclidean import Euclidean
+from .crminustwo import CrMinusTwo

@@ -74,8 +74,6 @@ class CressieRead:
 
         def F(x=None, z=None):
             if x is None: return 0, matrix(x0)
-            if x[0] + x[1] * actualwmin <= 0 or x[0] + x[1] * actualwmax <= 0:
-                return None
             f = CressieRead.Estimate.dualobjective(x[0], x[1], datagen, n, lam)
             jf = CressieRead.Estimate.jacdualobjective(x[0], x[1], datagen, n, lam)
             Df = matrix(jf).T
