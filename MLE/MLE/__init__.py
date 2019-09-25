@@ -1,4 +1,5 @@
 from .estimate import estimate
+from .estimatediff import estimatediff
 from .estimatewithcv import estimatewithcv
 from .asymptoticconfidenceinterval import asymptoticconfidenceinterval
 from .asymptoticconfidenceintervalwithcv import asymptoticconfidenceintervalwithcv
