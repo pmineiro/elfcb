@@ -1,13 +1,17 @@
 class CrMinusTwo:
     @staticmethod
-    def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, **kwargs):
-        n, sumw, sumwsq, sumwr, sumwsqr = 0, 0, 0, 0, 0
+    def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=False):
+        n, sumw, sumwsq, sumwr, sumwsqr, sumwany, sumwsqany = 0, 0, 0, 0, 0, 0, 0
         for c, w, r in datagen():
             n += c
             sumw += c*w
             sumwsq += c*w*w
-            sumwr += c*w*r
-            sumwsqr += c*w*w*r
+            if r is not None:
+                sumwany += c*w
+                sumwsqany += c*w*w
+                sumwr += c*w*r
+                sumwsqr += c*w*w*r
+
         assert n > 0
 
         wfake = wmax if sumw < n else wmin
@@ -21,10 +25,37 @@ class CrMinusTwo:
         vhat = (-gammastar * sumwr - betastar * sumwsqr) / (1 + n)
         missing = (-gammastar * wfake - betastar * wfake**2) / (1 + n)
 
-        vmin = max(rmin, min(rmax, vhat + missing * rmin))
-        vmax = max(rmin, min(rmax, vhat + missing * rmax))
-        vhat += missing * (rmin + rmax) / 2.0
-        vhat = max(rmin, min(rmax, vhat))
+        if censored:
+            # vhat = E[w r 1_{r is not None}] / E[w 1_{r is not None}]
+
+            vnumhat = vhat
+            vdenomhat = (-gammastar * sumwany - betastar * sumwsqany) / (1 + n)
+
+            # Minimize[{ (x + a r) / (y + a),  y >= 0, 0 <= a <= m }, a]
+            #
+            # extrema is always at endpoints of interval
+
+            vmincandidates = []
+            vmaxcandidates = []
+            if vdenomhat > 0:
+                vmincandidates.append(vnumhat / vdenomhat)
+                vmaxcandidates.append(vnumhat / vdenomhat)
+
+            if vdenomhat + missing > 0:
+                vmincandidates.append((vnumhat + missing * rmin) / (vdenomhat + missing))
+                vmaxcandidates.append((vnumhat + missing * rmax) / (vdenomhat + missing))
+
+            vmin = min(vmincandidates, default=None)
+            vmax = max(vmaxcandidates, default=None)
+            vhat = None if vmin is None or vmax is None else (vmin + vmax) / 2
+        else:
+            vmin = vhat + missing * rmin
+            vmax = vhat + missing * rmax
+            vhat += missing * (rmin + rmax) / 2
+
+
+        vmin, vmax, vhat = (None if x is None else min(rmax, max(rmin, x))
+                            for x in (vmin, vmax, vhat))
 
         return vhat, {
             'primal': gstar,
