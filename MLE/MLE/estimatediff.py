@@ -128,5 +128,6 @@ def estimatediff(datagen, umin, umax, wmin, wmax, rmin=0, rmax=1, raiseonerr=Fal
             'num': num,
             'gammastar': gammastar,
             'taustar': taustar,
-            'qfunc': qfunc
+            'qfunc': qfunc,
+            'primal': num * fstar
     }

@@ -1,4 +1,4 @@
-# See JohnStyleProfile.ipynb for derivation, implementation notes, and test
+# See ci.ipynb for derivation, implementation notes, and test
 def asymptoticconfidenceinterval(datagen, wmin, wmax, alpha=0.05,
                                  rmin=0, rmax=1, raiseonerr=False):
     from scipy.special import xlogy
