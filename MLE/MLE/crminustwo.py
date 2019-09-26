@@ -1,6 +1,11 @@
 class CrMinusTwo:
     @staticmethod
     def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=False):
+        assert wmin >= 0
+        assert wmin < 1
+        assert wmax > 1
+        assert rmax >= rmin
+
         n, sumw, sumwsq, sumwr, sumwsqr, sumwany, sumwsqany = 0, 0, 0, 0, 0, 0, 0
         for c, w, r in datagen():
             n += c
@@ -67,6 +72,81 @@ class CrMinusTwo:
             'num': n,
             'qfunc': lambda c, w, r: (c/(1 + n)) * w * (-gammastar - betastar * w),
         }
+
+    @staticmethod
+    def estimatediff(datagen, umin, umax, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=False):
+        import numpy as np
+
+        assert umin >= 0
+        assert umin < 1
+        assert umax > 1
+        assert wmin >= 0
+        assert wmin < 1
+        assert wmax > 1
+        assert rmax >= rmin
+        assert not censored
+
+        n, sumu, sumw, sumuw, sumusq, sumwsq = 0, 0, 0, 0, 0, 0
+        sumuMwr, sumuuMwr, sumwuMwr = 0, 0, 0
+        for c, u, w, r in datagen():
+            n += c
+            sumu += c * u
+            sumw += c * w
+            sumuw += c * u * w
+            sumusq += c * u**2
+            sumwsq += c * w**2
+            sumuMwr += c * (u - w) * r
+            sumuuMwr += c * u * (u - w) * r
+            sumwuMwr += c * w * (u - w) * r
+
+        assert n > 0
+
+        ufake = umax if sumu < n else umin
+        wfake = wmax if sumw < n else wmin
+
+        ubar = (sumu + ufake) / (n + 1)
+        usqbar = (sumusq + ufake**2) / (n + 1)
+        uwbar = (sumuw + ufake * wfake) / (n + 1)
+        wbar = (sumw + wfake) / (n + 1)
+        wsqbar = (sumwsq + wfake**2) / (n + 1)
+
+        A = np.array([ [ -1, -ubar, -wbar ],
+                       [ -ubar, -usqbar, -uwbar  ],
+                       [ -wbar, -uwbar, -wsqbar ] ],
+                     dtype='float64')
+        b = np.ones(3, dtype='float64')
+
+        xstar = np.linalg.lstsq(A, b, rcond=-1)[0]
+        beta, gamma, tau = xstar
+
+        deltavhat = (- beta * sumuMwr - gamma * sumuuMwr - tau * sumwuMwr) / n
+        missing = (
+                    - beta * (ufake - wfake)
+                    - gamma * (ufake**2 - ufake * wfake)
+                    - tau * (ufake * wfake - wfake**2)
+                  ) / (n + 1)
+
+        deltavmin = deltavhat + min(rmin * missing, rmax * missing)
+        deltavmax = deltavhat + max(rmin * missing, rmax * missing)
+        deltavhat = (deltavmin + deltavmax) / 2
+
+        deltavmin, deltavmax, deltavhat = (min(rmax - rmin, max(rmin - rmax, x))
+                                           for x in (deltavmin,
+                                                     deltavmax,
+                                                     deltavhat))
+
+        qfunc = lambda c, u, w, r, n=n, b=beta, g=gamma, t=tau: (c/(n+1))*(-b -g*u -t*w)
+
+        return deltavhat, {
+                'deltavmin': deltavmin,
+                'deltavmax': deltavmax,
+                'num': n,
+                'betastar': beta,
+                'gammastar': gamma,
+                'taustar': tau,
+                'qfunc': qfunc
+        }
+
 
     @staticmethod
     def interval(datagen, wmin, wmax, alpha=0.05,

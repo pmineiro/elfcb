@@ -10,6 +10,7 @@ def estimatediff(datagen, umin, umax, wmin, wmax, rmin=0, rmax=1, raiseonerr=Fal
     assert wmin < 1
     assert wmax > 1
     assert rmax >= rmin
+    assert not censored
 
     num, sumusq, sumwsq = 0, 0, 0
     for c, u, w, _ in datagen():
