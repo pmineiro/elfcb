@@ -1,6 +1,8 @@
 class CrMinusTwo:
     @staticmethod
     def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=False):
+        from math import inf
+
         assert wmin >= 0
         assert wmin < 1
         assert wmax > 1
@@ -21,14 +23,20 @@ class CrMinusTwo:
 
         wfake = wmax if sumw < n else wmin
 
-        a = (wfake + sumw) / (1 + n)
-        b = (wfake**2 + sumwsq) / (1 + n)
-        assert a*a < b
-        gammastar = (b - a) / (a*a - b)
-        betastar = (1 - a) / (a*a - b)
-        gstar = (n + 1) * (a - 1)**2 / (b - a*a)
+        if wfake == inf:
+            gammastar = -(1 + n) / n
+            betastar = 0
+            gstar = 1 + 1 / n
+        else:
+            a = (wfake + sumw) / (1 + n)
+            b = (wfake**2 + sumwsq) / (1 + n)
+            assert a*a < b
+            gammastar = (b - a) / (a*a - b)
+            betastar = (1 - a) / (a*a - b)
+            gstar = (n + 1) * (a - 1)**2 / (b - a*a)
+
         vhat = (-gammastar * sumwr - betastar * sumwsqr) / (1 + n)
-        missing = (-gammastar * wfake - betastar * wfake**2) / (1 + n)
+        missing = max(0, 1 - (-gammastar * sumw - betastar * sumwsq) / (1 + n))
 
         if censored:
             # vhat = E[w r 1_{r is not None}] / E[w 1_{r is not None}]
@@ -58,13 +66,11 @@ class CrMinusTwo:
             vmax = vhat + missing * rmax
             vhat += missing * (rmin + rmax) / 2
 
-
         vmin, vmax, vhat = (None if x is None else min(rmax, max(rmin, x))
                             for x in (vmin, vmax, vhat))
 
         return vhat, {
             'primal': gstar,
-            'barw': sumw / n,
             'gammastar': gammastar,
             'betastar': betastar,
             'vmin': vmin,
