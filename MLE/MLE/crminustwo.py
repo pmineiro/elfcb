@@ -144,7 +144,8 @@ class CrMinusTwo:
                 'betastar': beta,
                 'gammastar': gamma,
                 'taustar': tau,
-                'qfunc': qfunc
+                'primal': -(n+1)*(1 + beta + gamma + tau),
+                'qfunc': qfunc,
         }
 
 
@@ -197,7 +198,7 @@ class CrMinusTwo:
                     if z <= 0 and y * z >= 0:
                         from math import sqrt
                         gstar = x - sqrt(2 * y * z)
-                        kappa = sqrt(y / (2 * z)) if z < 0 else 0
+                        kappa = sqrt(y / (2 * z)) if y * z > 0 else 0
                         beta = (-kappa * (1 - barw) - (barwsqr - barw * barwr)) / (barwsq - barw*barw)
                         gamma = -kappa - beta * barw - barwr
 
@@ -207,7 +208,7 @@ class CrMinusTwo:
                             'gammastar': gamma,
                             'wfake': wfake,
                         # Q_{w,r} &= -\frac{\gamma + \beta w + w r}{(N+1) \kappa} \\
-                            'qfunc': lambda c, w, r, k=kappa, g=gamma, b=beta, s=sign, num=n: -(g + (b + s * r) * w) / ((num + 1) * kappa),
+                            'qfunc': lambda c, w, r, k=kappa, g=gamma, b=beta, s=sign, num=n: -(g + (b + s * r) * w) / ((num + 1) * k),
                         }))
 
             best = min(candidates, key=lambda x: x[0])
@@ -215,3 +216,95 @@ class CrMinusTwo:
             bounds.append((vbound, best[1]))
 
         return (bounds[0][0], bounds[1][0]), (bounds[0][1], bounds[1][1])
+
+    @staticmethod
+    def intervaldiff(datagen, umin, umax, wmin, wmax, alpha=0.05,
+                     rmin=0, rmax=1, raiseonerr=False):
+        import numpy as np
+        from math import isclose, sqrt
+        from scipy.stats import f
+
+        assert umin >= 0
+        assert umin < 1
+        assert umax > 1
+        assert wmin >= 0
+        assert wmin < 1
+        assert wmax > 1
+        assert rmax >= rmin
+
+        _, mle = CrMinusTwo.estimatediff(datagen, umin, umax, wmin, wmax, rmin, rmax, raiseonerr=raiseonerr)
+
+        Delta = f.isf(q=alpha, dfn=1, dfd=mle['num']-1)
+        phi = (-Delta - mle['primal']) / (2 * (mle['num'] + 1))
+
+        n, sumu, sumw, sumuw, sumusq, sumwsq = 0, 0, 0, 0, 0, 0
+        sumuMwr, sumuuMwr, sumwuMwr, sumuMwsqrsq = 0, 0, 0, 0
+        for c, u, w, r in datagen():
+            n += c
+            sumu += c * u
+            sumw += c * w
+            sumuw += c * u * w
+            sumusq += c * u**2
+            sumwsq += c * w**2
+            sumuMwr += c * (u - w) * r
+            sumuuMwr += c * u * (u - w) * r
+            sumwuMwr += c * w * (u - w) * r
+            sumuMwsqrsq += c * (u - w)**2 * r**2
+
+        assert n > 0
+
+        bounds = []
+        for sign in (1, -1):
+            candidates = []
+            for ufake, wfake in ((u, w) for u in (umin, umax)
+                                        for w in (wmin, wmax)):
+                rex = rmin if sign * ufake >= sign * wfake else rmax
+
+                baru = (sumu + ufake) / (n + 1)
+                barw = (sumw + wfake) / (n + 1)
+                barusq = (sumusq + ufake**2) / (n + 1)
+                barwsq = (sumwsq + wfake**2) / (n + 1)
+                baruw = (sumuw + ufake * wfake) / (n + 1)
+                baruMwr = sign * (sumuMwr + (ufake - wfake) * rex) / (n + 1)
+                baruuMwr = sign * (sumuuMwr + ufake * (ufake - wfake) * rex) / (n + 1)
+                barwuMwr = sign * (sumwuMwr + wfake * (ufake - wfake) * rex) / (n + 1)
+                baruMwsqrsq = (sumuMwsqrsq + (ufake - wfake)**2 * rex**2) / (n + 1)
+
+                C = np.array([ [ 1.0, baru, barw ],
+                               [ baru, barusq, baruw ],
+                               [ barw, baruw, barwsq ],
+                             ], dtype='float64')
+                d = np.array([ baruMwr, baruuMwr, barwuMwr ],
+                             dtype='float64')
+
+                a = np.linalg.lstsq(C, np.ones(3), rcond=-1)[0]
+                b = np.linalg.lstsq(C, d, rcond=-1)[0]
+                x = np.sum(b)
+                y = np.dot(d, b) - baruMwsqrsq
+                z = phi - 0.5 + 0.5 * np.sum(a)
+
+                if isclose(y*z, 0, abs_tol=1e-9):
+                    y = 0
+
+                if z <= 0 and y * z >= 0:
+                    gstar = x - sqrt(2 * y * z)
+                    kappa = sqrt(y / (2 * z)) if y * z > 0 else 0
+                    beta, gamma, tau = -kappa * a - b
+
+                    candidates.append((gstar, None if isclose(kappa, 0) else {
+                            'kappastar': kappa,
+                            'betastar': beta,
+                            'gammastar': gamma,
+                            'taustar': tau,
+                            'ufake': ufake,
+                            'wfake': wfake,
+                            'rfake': rex,
+                            'qfunc': lambda c, u, w, r, k=kappa, g=gamma, b=beta, t=tau, s=sign, num=n: -(b + g * u + t * w + s * (u - w) * r) / ((num + 1) * k),
+                            'mle': mle,
+                        }))
+
+            best = min(candidates, key=lambda x: x[0])
+            vbound = min(rmax - rmin, max(rmin - rmax, sign*best[0]))
+            bounds.append((vbound, best[1]))
+
+        return (bounds[0][0], bounds[1][0]), (bounds[0][1], bounds[1][1]), candidates
