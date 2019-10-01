@@ -158,6 +158,7 @@ class CrMinusTwo:
     @staticmethod
     def interval(datagen, wmin, wmax, alpha=0.05,
                  rmin=0, rmax=1, raiseonerr=False):
+        from math import inf
         from scipy.stats import f
 
         assert wmin < 1
@@ -176,46 +177,87 @@ class CrMinusTwo:
         assert n > 0
 
         uncwfake = wmax if sumw < n else wmin
-        unca = (uncwfake + sumw) / (1 + n)
-        uncb = (uncwfake**2 + sumwsq) / (1 + n)
-        uncgstar = (n + 1) * (unca - 1)**2 / (uncb - unca*unca)
-        Delta = f.isf(q=alpha, dfn=1, dfd=n-1)
+        if uncwfake == inf:
+            uncgstar = 1 + 1 / n
+        else:
+            unca = (uncwfake + sumw) / (1 + n)
+            uncb = (uncwfake**2 + sumwsq) / (1 + n)
+            uncgstar = (n + 1) * (unca - 1)**2 / (uncb - unca*unca)
+        Delta = f.isf(q=alpha, dfn=1, dfd=n)
         phi = (-uncgstar - Delta) / (2 * (n + 1))
 
         bounds = []
         for r, sign in ((rmin, 1), (rmax, -1)):
             candidates = []
             for wfake in (wmin, wmax):
-                barw = (wfake + sumw) / (1 + n)
-                barwsq = (wfake*wfake + sumwsq) / (1 + n)
-                barwr = sign * (wfake * r + sumwr) / (1 + n)
-                barwsqr = sign * (wfake * wfake * r + sumwsqr) / (1 + n)
-                barwsqrsq = (wfake * wfake * r * r + sumwsqrsq) / (1 + n)
-
-                if barwsq > barw**2:
-                    from math import isclose
-
-                    x = barwr + ((1 - barw) * (barwsqr - barw * barwr) / (barwsq - barw**2))
-                    y = (barwsqr - barw * barwr)**2 / (barwsq - barw**2) - (barwsqrsq - barwr**2)
-                    z = phi + (1/2) * (1 - barw)**2 / (barwsq - barw**2)
+                if wfake == inf:
+                    y = (  (r * sumw - sumwr)**2 / (n * (1 + n))
+                         - (r**2 * sumwsq - 2 * r * sumwsqr + sumwsqrsq) / (1 + n)
+                        )
+                    z = phi + 1 / (2 * n)
                     if isclose(y*z, 0, abs_tol=1e-9):
                         y = 0
 
                     if z <= 0 and y * z >= 0:
                         from math import sqrt
-                        gstar = x - sqrt(2 * y * z)
-                        kappa = sqrt(y / (2 * z)) if y * z > 0 else 0
-                        beta = (-kappa * (1 - barw) - (barwsqr - barw * barwr)) / (barwsq - barw*barw)
-                        gamma = -kappa - beta * barw - barwr
+                        kappa = sqrt(y / (2 * z))
+                        if isclose(kappa, 0):
+                            candidates.append((sign * r, None))
+                        else:
+                            gstar = sign * sumwr / n - 1/(kappa * (1 + n)) * (
+                                        sumwsqrsq - sumwsqr * r
+                                        - (1/n) * sumwr * (sumwr - r * sumw)
+                                    )
+                            sumofw = sumw / n - 1/(kappa * (1 + n)) * sign * (
+                                       sumwsqr - sumwsq * r
+                                       - (1/n) * sumw * (sumwr - r * sumw)
+                                   )
+                            missing = 1 - sumofw
+                            gstar += sign * missing * r
+                            gamma = ( -kappa * (1 + n) / n
+                                     + sign * (r * sumw - sumwr) / n )
+                            beta = -sign * r
+                            candidates.append((gstar, {
+                                'kappastar': kappa,
+                                'betastar': beta,
+                                'gammastar': gamma,
+                                'wfake': wfake,
+                            # Q_{w,r} &= -\frac{\gamma + \beta w + w r}{(N+1) \kappa} \\
+                                'qfunc': lambda c, w, r, k=kappa, g=gamma, b=beta, s=sign, num=n: -(g + (b + s * r) * w) / ((num + 1) * k),
+                            }))
+                else:
+                    barw = (wfake + sumw) / (1 + n)
+                    barwsq = (wfake*wfake + sumwsq) / (1 + n)
+                    barwr = sign * (wfake * r + sumwr) / (1 + n)
+                    barwsqr = sign * (wfake * wfake * r + sumwsqr) / (1 + n)
+                    barwsqrsq = (wfake * wfake * r * r + sumwsqrsq) / (1 + n)
 
-                        candidates.append((gstar, None if isclose(kappa, 0) else {
-                            'kappastar': kappa,
-                            'betastar': beta,
-                            'gammastar': gamma,
-                            'wfake': wfake,
-                        # Q_{w,r} &= -\frac{\gamma + \beta w + w r}{(N+1) \kappa} \\
-                            'qfunc': lambda c, w, r, k=kappa, g=gamma, b=beta, s=sign, num=n: -(g + (b + s * r) * w) / ((num + 1) * k),
-                        }))
+                    if barwsq > barw**2:
+                        from math import isclose
+
+                        x = barwr + ((1 - barw) * (barwsqr - barw * barwr) / (barwsq - barw**2))
+                        y = (barwsqr - barw * barwr)**2 / (barwsq - barw**2) - (barwsqrsq - barwr**2)
+                        z = phi + (1/2) * (1 - barw)**2 / (barwsq - barw**2)
+                        if isclose(y*z, 0, abs_tol=1e-9):
+                            y = 0
+
+                        if z <= 0 and y * z >= 0:
+                            from math import sqrt
+                            kappa = sqrt(y / (2 * z)) if y * z > 0 else 0
+                            if isclose(kappa, 0):
+                                candidates.append((sign * r, None))
+                            else:
+                                gstar = x - sqrt(2 * y * z)
+                                beta = (-kappa * (1 - barw) - (barwsqr - barw * barwr)) / (barwsq - barw*barw)
+                                gamma = -kappa - beta * barw - barwr
+                                candidates.append((gstar, {
+                                    'kappastar': kappa,
+                                    'betastar': beta,
+                                    'gammastar': gamma,
+                                    'wfake': wfake,
+                                # Q_{w,r} &= -\frac{\gamma + \beta w + w r}{(N+1) \kappa} \\
+                                    'qfunc': lambda c, w, r, k=kappa, g=gamma, b=beta, s=sign, num=n: -(g + (b + s * r) * w) / ((num + 1) * k),
+                                }))
 
             best = min(candidates, key=lambda x: x[0])
             vbound = min(rmax, max(rmin, sign*best[0]))
