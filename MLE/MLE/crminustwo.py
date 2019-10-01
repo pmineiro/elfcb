@@ -158,7 +158,7 @@ class CrMinusTwo:
     @staticmethod
     def interval(datagen, wmin, wmax, alpha=0.05,
                  rmin=0, rmax=1, raiseonerr=False):
-        from math import inf
+        from math import inf, isclose, sqrt
         from scipy.stats import f
 
         assert wmin < 1
@@ -199,7 +199,6 @@ class CrMinusTwo:
                         y = 0
 
                     if z <= 0 and y * z >= 0:
-                        from math import sqrt
                         kappa = sqrt(y / (2 * z))
                         if isclose(kappa, 0):
                             candidates.append((sign * r, None))
@@ -233,8 +232,6 @@ class CrMinusTwo:
                     barwsqrsq = (wfake * wfake * r * r + sumwsqrsq) / (1 + n)
 
                     if barwsq > barw**2:
-                        from math import isclose
-
                         x = barwr + ((1 - barw) * (barwsqr - barw * barwr) / (barwsq - barw**2))
                         y = (barwsqr - barw * barwr)**2 / (barwsq - barw**2) - (barwsqrsq - barwr**2)
                         z = phi + (1/2) * (1 - barw)**2 / (barwsq - barw**2)
@@ -242,7 +239,6 @@ class CrMinusTwo:
                             y = 0
 
                         if z <= 0 and y * z >= 0:
-                            from math import sqrt
                             kappa = sqrt(y / (2 * z)) if y * z > 0 else 0
                             if isclose(kappa, 0):
                                 candidates.append((sign * r, None))
