@@ -214,7 +214,7 @@ class CrMinusTwo:
                                 'gammastar': gamma,
                                 'wfake': wfake,
                             # Q_{w,r} &= -\frac{\gamma + \beta w + w r}{(N+1) \kappa} \\
-                                'qfunc': lambda c, w, r, k=kappa, g=gamma, b=beta, s=sign, num=n: -(g + (b + s * r) * w) / ((num + 1) * k),
+                                'qfunc': lambda c, w, r, k=kappa, g=gamma, b=beta, s=sign, num=n: -c * (g + (b + s * r) * w) / ((num + 1) * k),
                             }))
                 else:
                     barw = (wfake + sumw) / (1 + n)
@@ -244,7 +244,7 @@ class CrMinusTwo:
                                     'gammastar': gamma,
                                     'wfake': wfake,
                                 # Q_{w,r} &= -\frac{\gamma + \beta w + w r}{(N+1) \kappa} \\
-                                    'qfunc': lambda c, w, r, k=kappa, g=gamma, b=beta, s=sign, num=n: -(g + (b + s * r) * w) / ((num + 1) * k),
+                                    'qfunc': lambda c, w, r, k=kappa, g=gamma, b=beta, s=sign, num=n: -c * (g + (b + s * r) * w) / ((num + 1) * k),
                                 }))
 
             best = min(candidates, key=lambda x: x[0])
