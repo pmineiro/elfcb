@@ -3,11 +3,6 @@ class CrMinusTwo:
     def estimate(datagen, wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=False):
         from math import inf
 
-        assert wmin >= 0
-        assert wmin < 1
-        assert wmax > 1
-        assert rmax >= rmin
-
         n, sumw, sumwsq, sumwr, sumwsqr, sumwany, sumwsqany = 0, 0, 0, 0, 0, 0, 0
         for c, w, r in datagen():
             n += c
@@ -20,6 +15,19 @@ class CrMinusTwo:
                 sumwsqr += c*w*w*r
 
         assert n > 0
+
+        return CrMinusTwo.estimateimpl(
+                n, sumw, sumwsq, sumwr, sumwsqr, sumwany, sumwsqany,
+                wmin, wmax, rmin, rmax, raiseonerr, censored)
+
+    def estimateimpl(n, sumw, sumwsq, sumwr, sumwsqr, sumwany, sumwsqany,
+                     wmin, wmax, rmin=0, rmax=1, raiseonerr=False, censored=False):
+        from math import inf
+
+        assert wmin >= 0
+        assert wmin < 1
+        assert wmax > 1
+        assert rmax >= rmin
 
         wfake = wmax if sumw < n else wmin
 
@@ -76,7 +84,7 @@ class CrMinusTwo:
             'vmin': vmin,
             'vmax': vmax,
             'num': n,
-            'qfunc': lambda c, w, r: (c/(1 + n)) * w * (-gammastar - betastar * w),
+            'qfunc': lambda c, w, r: (c/(1 + n)) * (-gammastar - betastar * w),
         }
 
     @staticmethod
@@ -154,7 +162,6 @@ class CrMinusTwo:
                 'qfunc': qfunc,
         }
 
-
     @staticmethod
     def interval(datagen, wmin, wmax, alpha=0.05,
                  rmin=0, rmax=1, raiseonerr=False):
@@ -175,6 +182,19 @@ class CrMinusTwo:
             sumwsqr += c * w**2 * r
             sumwsqrsq += c * w**2 * r**2
         assert n > 0
+
+        return CrMinusTwo.intervalimpl(n, sumw, sumwsq, sumwr, sumwsqr, sumwsqrsq, wmin, wmax, alpha, rmin, rmax, raiseonerr)
+
+    @staticmethod
+    def intervalimpl(n, sumw, sumwsq, sumwr, sumwsqr, sumwsqrsq,
+                     wmin, wmax, alpha=0.05,
+                     rmin=0, rmax=1, raiseonerr=False):
+        from math import inf, isclose, sqrt
+        from scipy.stats import f
+
+        assert wmin < 1
+        assert wmax > 1
+        assert rmin <= rmax
 
         uncwfake = wmax if sumw < n else wmin
         if uncwfake == inf:
@@ -335,7 +355,7 @@ class CrMinusTwo:
                             'ufake': ufake,
                             'wfake': wfake,
                             'rfake': rex,
-                            'qfunc': lambda c, u, w, r, k=kappa, g=gamma, b=beta, t=tau, s=sign, num=n: -(b + g * u + t * w + s * (u - w) * r) / ((num + 1) * k),
+                            'qfunc': lambda c, u, w, r, k=kappa, g=gamma, b=beta, t=tau, s=sign, num=n: -c * (b + g * u + t * w + s * (u - w) * r) / ((num + 1) * k),
                             'mle': mle,
                         }))
 
