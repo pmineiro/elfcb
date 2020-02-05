@@ -4,9 +4,9 @@ Experimental things that are not in the paper.
 
 ### Alternative Set of Data Sets
 
- * ```make learningshootoutgt10class``` 
+ * ```make learningshootoutgt10class```
  ```console
- (elfcb) pmineiro@PMINEIRO-207% make learningshootoutgt10class
+ (elfcb) % make learningshootoutgt10class
 eval ./do-learning-shootout.py --dirname gt10class
 ('EpsilonGreedy 0.05', Counter({'tie': 35, 'base': 3, 'mle': 2}))
 ('EpsilonGreedy 0.1', Counter({'tie': 35, 'base': 4, 'mle': 1}))
@@ -16,10 +16,10 @@ eval ./do-learning-shootout.py --dirname gt10class
 ('Cover 10', Counter({'tie': 39, 'mle': 1}))
 ('Cover 32', Counter({'tie': 36, 'base': 3, 'mle': 1}))
  ```
- 
- * ```make learningshootoutmlegt10class``` 
+
+ * ```make learningshootoutmlegt10class```
  ```console
- (elfcb) pmineiro@PMINEIRO-209% make learningshootoutmlegt10class
+ (elfcb) % make learningshootoutmlegt10class
 eval ./do-learning-shootout.py --dirname gt10class --challenger mle
 ('EpsilonGreedy 0.05', Counter({'tie': 31, 'base': 5, 'mle': 4}))
 ('EpsilonGreedy 0.1', Counter({'tie': 34, 'base': 4, 'mle': 2}))
@@ -33,9 +33,9 @@ eval ./do-learning-shootout.py --dirname gt10class --challenger mle
 
 This is an "online" (in the computationally incremental sense) dual update strategy combined with learning.  It is not in the original paper.
 
-* ```make learningshootoutonlineorig40``` will (eventually) produce results analogous to the first column of Table 3.  
+* ```make learningshootoutonlineorig40``` will (eventually) produce results analogous to the first column of Table 3.
 ```console
-(elfcb) pmineiro@PMINEIRO-132% make learningshootoutonlineorig40
+(elfcb) % make learningshootoutonlineorig40
 eval ./do-learning-shootout.py --dirname orig40 --challenger onlineci
 ('EpsilonGreedy 0.1', Counter({'base': 27, 'tie': 11, 'onlineci': 2}))
 ('EpsilonGreedy 0.25', Counter({'base': 25, 'tie': 12, 'onlineci': 3}))
@@ -44,9 +44,9 @@ eval ./do-learning-shootout.py --dirname orig40 --challenger onlineci
 ('Cover 10', Counter({'base': 21, 'tie': 19}))
 ('Cover 32', Counter({'tie': 26, 'base': 13, 'onlineci': 1}))
 ```
-* ```make learningshootoutonlinegt10class``` will (eventually) produce results analogous to the first column of Table 5.  
+* ```make learningshootoutonlinegt10class``` will (eventually) produce results analogous to the first column of Table 5.
 ```console
-(elfcb) pmineiro@PMINEIRO-26% make learningshootoutonlinegt10class
+(elfcb) % make learningshootoutonlinegt10class
 eval ./do-learning-shootout.py --dirname gt10class --challenger onlineci
 ('EpsilonGreedy 0.05', Counter({'tie': 35, 'base': 3, 'onlineci': 2}))
 ('EpsilonGreedy 0.1', Counter({'tie': 34, 'base': 3, 'onlineci': 3}))
@@ -67,7 +67,7 @@ Given a reward predictor $\hat{r}$, we can form a control variate $E_{(x, r) \si
 ##### Estimation
 Comparing to ```make estimationshootout``` above indicates improvement.
 ```console
-(elfcb) pmineiro@PMINEIRO-31% make estimationshootoutdr
+(elfcb) % make estimationshootoutdr
 ./do-estimation-shootout.py --dirname orig40 --challenger mledr
 ('EpsilonGreedy 0.05',
  {'ipsvsmledr': Counter({'mledr': 25, 'tie': 12, 'ips': 3}),
@@ -95,7 +95,7 @@ Comparing to ```make estimationshootout``` above indicates improvement.
 ##### Learning
 Comparing to ```make learningshootoutmleorig40``` indicates improvement.
 ```console
-(elfcb) pmineiro@PMINEIRO-162% make learningshootoutmledrorig40 
+(elfcb) % make learningshootoutmledrorig40
 eval ./do-learning-shootout.py --dirname orig40 --challenger mledr
 ('EpsilonGreedy 0.05', Counter({'tie': 25, 'mledr': 10, 'base': 5}))
 ('EpsilonGreedy 0.1', Counter({'tie': 26, 'mledr': 12, 'base': 2}))
@@ -107,7 +107,7 @@ eval ./do-learning-shootout.py --dirname orig40 --challenger mledr
 ```
 For completeness ...
 ```console
-(elfcb) pmineiro@PMINEIRO-417% make learningshootoutmledrgt10class
+(elfcb) % make learningshootoutmledrgt10class
 eval ./do-learning-shootout.py --dirname gt10class --challenger mledr
 ('EpsilonGreedy 0.05', Counter({'tie': 37, 'mledr': 2, 'base': 1}))
 ('EpsilonGreedy 0.1', Counter({'tie': 38, 'base': 2}))
@@ -120,12 +120,12 @@ eval ./do-learning-shootout.py --dirname gt10class --challenger mledr
 
 #### Action control variates
 
-For each action a, we have $E_{(x,r) \sim D, a' \sim h}\left[ \frac{\pi(a'|x)}{h(a'|x)} 1_{a'=a} \right] = E_{(x,r) \sim D}\left[ \pi(a|x) \right ]$ (in English: the expected value of the importance weight for each action a is equal to the probability that the evaluated policy \pi plays a).  These control variates do not use reward information, so this is an &ldquo;apples-to-apples&rdquo; comparison.  
+For each action a, we have $E_{(x,r) \sim D, a' \sim h}\left[ \frac{\pi(a'|x)}{h(a'|x)} 1_{a'=a} \right] = E_{(x,r) \sim D}\left[ \pi(a|x) \right ]$ (in English: the expected value of the importance weight for each action a is equal to the probability that the evaluated policy \pi plays a).  These control variates do not use reward information, so this is an &ldquo;apples-to-apples&rdquo; comparison.
 
 ##### Estimation
 Comparing to ```make estimationshootout``` above indicates improvement.
 ```console
-(elfcb) pmineiro@PMINEIRO-70% make estimationshootoutcv
+(elfcb) % make estimationshootoutcv
 ./do-estimation-shootout.py --dirname orig40 --challenger mlecv
 ('EpsilonGreedy 0.05',
  {'ipsvsmlecv': Counter({'mlecv': 26, 'tie': 11, 'ips': 3}),
