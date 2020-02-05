@@ -6,7 +6,7 @@ Results from the paper comparing empirical likelihood to baselines for estimatio
 
 * ```make estimationshootout``` will (eventually) produce the results in Tables 1 and 4.
 ```console
-(elfcb) % make estimationshootout
+(elfcb) pmineiro@PMINEIRO-253% make estimationshootout
 ./do-estimation-shootout.py --dirname orig40
 eval ./do-estimation-shootout.py --dirname orig40
 ('EpsilonGreedy 0.05',
@@ -36,7 +36,7 @@ eval ./do-estimation-shootout.py --dirname orig40
 
  * ```make learningshootoutorig40``` will (eventually) produce the first column of results from Figure 3.
  ```console
-(elfcb) % make learningshootoutorig40
+(elfcb) pmineiro@PMINEIRO-52% make learningshootoutorig40
 eval ./do-learning-shootout.py --dirname orig40
 ('EpsilonGreedy 0.05', Counter({'tie': 18, 'ci': 16, 'base': 6}))
 ('EpsilonGreedy 0.1', Counter({'tie': 19, 'ci': 16, 'base': 5}))
@@ -49,7 +49,7 @@ eval ./do-learning-shootout.py --dirname orig40
 
 * ```make learningshootoutmleorig40``` will (eventually) produce the second column of results from Figure 3.
 ```console
-(elfcb) % make learningshootoutmleorig40
+(elfcb) pmineiro@PMINEIRO-4% make learningshootoutmleorig40
 eval ./do-learning-shootout.py --dirname orig40 --challenger mle
 ('EpsilonGreedy 0.05', Counter({'tie': 26, 'mle': 11, 'base': 3}))
 ('EpsilonGreedy 0.1', Counter({'tie': 24, 'mle': 13, 'base': 3}))

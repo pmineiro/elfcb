@@ -113,5 +113,5 @@ dependencies:
     - wcwidth==0.1.7
     - webencodings==0.5.1
     - widgetsnbextension==3.4.2
-prefix: ~/miniconda3/envs/elfcb
+prefix: /home/pmineiro/miniconda3/envs/elfcb
 
