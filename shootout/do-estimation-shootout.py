@@ -13,6 +13,18 @@ class SNIPS:
         effn = sum(c*w for c, w, _ in data)
         return 0.5 if effn == 0 else sum(c*w*r for c, w, r in data) / effn
 
+
+class EMP:
+    @staticmethod
+    def estimate(data, **kwargs):
+        import MLE.MLE
+        vhat, mledict = MLE.MLE.estimate(datagen=lambda: data, **kwargs)
+        qstar = mledict['qfunc']
+        q = [(qstar(c,w,r), w, r) for c, w, r in data]
+        effn = sum(qi for qi, wi, ri in q)
+        return 0.5 if effn == 0 else sum(qi*wi*ri for qi, wi, ri, in q) / effn
+
+
 class Dataset(object):
     def __init__(self, lineseed, path):
         import gzip
@@ -350,6 +362,7 @@ def dofile(filename, lineseed, actionseed, passes, exploration, challenger):
         ips = []
         snips = []
         mle = []
+        emp = []
         truevals = []
 
         # 95% for t-test with dof=60 => 2x std-dev
@@ -362,6 +375,8 @@ def dofile(filename, lineseed, actionseed, passes, exploration, challenger):
             ips.append(ClippedIPS.estimate(counts))
             snipsres = SNIPS.estimate(counts)
             snips.append(snipsres)
+            empres = EMP.estimate(counts, wmin=0, wmax=wmax)
+            emp.append(empres)
             if challenger == Challenger.MLE:
                 mleres = MLE.MLE.estimate(datagen=lambda: counts, wmin=0, wmax=wmax)
                 mle.append(snipsres*mleres[1]['vmax'] + (1 - snipsres)*mleres[1]['vmin'])
@@ -378,6 +393,7 @@ def dofile(filename, lineseed, actionseed, passes, exploration, challenger):
         ips = numpy.array(ips)
         snips = numpy.array(snips)
         mle = numpy.array(mle)
+        emp = numpy.array(emp)
         truevals = numpy.array(truevals)
 
         ipsvsmle = numpy.mean(numpy.square(ips - truevals)
@@ -391,6 +407,16 @@ def dofile(filename, lineseed, actionseed, passes, exploration, challenger):
                            'tie')
 
 
+        empvsmle = numpy.mean(numpy.square(emp - truevals)
+                                - numpy.square(mle - truevals))
+        empvsmlevar = numpy.std(numpy.square(emp - truevals)
+                                  - numpy.square(mle - truevals),
+                                  ddof=1) / numpy.sqrt(len(emp))
+        empvsmlewinloss = (
+                challenger.value if empvsmle > max(1e-8, 2*empvsmlevar) else
+                'emp' if empvsmle < min(-1e-8, -2*empvsmlevar) else
+                'tie')
+                
         snipsvsmle = numpy.mean(numpy.square(snips - truevals)
                                 - numpy.square(mle - truevals))
         snipsvsmlevar = numpy.std(numpy.square(snips - truevals)
@@ -419,7 +445,7 @@ def dofile(filename, lineseed, actionseed, passes, exploration, challenger):
             removeit("dacost{}x{}".format(os.getpid(), index))
             removeit("dacost{}x{}.writing".format(os.getpid(), index))
 
-    return ipsvsmlewinloss, snipsvsmlewinloss
+    return ipsvsmlewinloss, snipsvsmlewinloss, empvsmlewinloss
 
 def doit(lineseed, actionseed, passes, dirname, exploration, poolsize, challenger):
     from collections import Counter
@@ -447,6 +473,7 @@ def doit(lineseed, actionseed, passes, dirname, exploration, poolsize, challenge
 
     return { 'ipsvs{}'.format(challenger.value): Counter([ x[0] for x in results ]),
              'snipsvs{}'.format(challenger.value): Counter([ x[1] for x in results ]),
+             'empvs{}'.format(challenger.value): Counter([ x[2] for x in results ]),
            }
 
 class EpsilonGreedy:
