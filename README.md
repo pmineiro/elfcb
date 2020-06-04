@@ -4,8 +4,8 @@ Code to reproduce the results in the paper [Empirical Likelihood for Contextual 
 ## Manifest
 
 * [estimate.ipynb](estimate.ipynb): MLE on synthetic data (Figure 2 of the paper)
-* [ci.ipynb](ci.ipynb): CI on synthetic data (Figure 1 and Figure 3 of the paper)
-* [shootout](shootout): Generate contents of Tables 1, 3, 4 and 5.
+* [ci.ipynb](ci.ipynb): CI on synthetic data (Figure 1 of the paper)
+* [shootout](shootout): Generate contents of Tables 1, 2, and 3.
 
 ## Setting up the Python Environment
 
@@ -31,6 +31,7 @@ Here's a recipe.
 (elfcb) % pip install cmake
 ...
 (elfcb) % cd $VW # $VW is where you cloned https://github.com/VowpalWabbit/vowpal_wabbit
+(elfcb) % git checkout 04cb225a8b031f1ff475bdfe34a48d3fef0901f1 -b elfcb
 (elfcb) % make clean && make
 ...
 (elfcb) % cd python && python setup.py install

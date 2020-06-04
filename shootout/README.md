@@ -10,26 +10,33 @@ Results from the paper comparing empirical likelihood to baselines for estimatio
 ./do-estimation-shootout.py --dirname orig40
 eval ./do-estimation-shootout.py --dirname orig40
 ('EpsilonGreedy 0.05',
- {'ipsvsmle': Counter({'mle': 26, 'tie': 11, 'ips': 3}),
+ {'empvsmle': Counter({'mle': 24, 'tie': 13, 'emp': 3}),
+  'ipsvsmle': Counter({'mle': 26, 'tie': 11, 'ips': 3}),
   'snipsvsmle': Counter({'tie': 34, 'mle': 5, 'snips': 1})})
 ('EpsilonGreedy 0.1',
- {'ipsvsmle': Counter({'mle': 27, 'tie': 10, 'ips': 3}),
+ {'empvsmle': Counter({'tie': 18, 'mle': 18, 'emp': 4}),
+  'ipsvsmle': Counter({'mle': 27, 'tie': 10, 'ips': 3}),
   'snipsvsmle': Counter({'tie': 33, 'mle': 7})})
 ('EpsilonGreedy 0.25',
- {'ipsvsmle': Counter({'mle': 28, 'tie': 9, 'ips': 3}),
+ {'empvsmle': Counter({'tie': 32, 'mle': 5, 'emp': 3}),
+  'ipsvsmle': Counter({'mle': 28, 'tie': 9, 'ips': 3}),
   'snipsvsmle': Counter({'tie': 37, 'snips': 2, 'mle': 1})})
 ('Bag 10',
- {'ipsvsmle': Counter({'tie': 19, 'mle': 13, 'ips': 8}),
+ {'empvsmle': Counter({'tie': 26, 'mle': 8, 'emp': 6}),
+  'ipsvsmle': Counter({'tie': 19, 'mle': 13, 'ips': 8}),
   'snipsvsmle': Counter({'tie': 30, 'mle': 7, 'snips': 3})})
 ('Bag 32',
- {'ipsvsmle': Counter({'mle': 22, 'tie': 10, 'ips': 8}),
-  'snipsvsmle': Counter({'tie': 34, 'mle': 4, 'snips': 2})})
+ {'empvsmle': Counter({'mle': 18, 'tie': 16, 'emp': 6}),
+  'ipsvsmle': Counter({'mle': 21, 'tie': 11, 'ips': 8}),
+  'snipsvsmle': Counter({'tie': 32, 'mle': 5, 'snips': 3})})
 ('Cover 10',
- {'ipsvsmle': Counter({'tie': 16, 'mle': 15, 'ips': 9}),
+ {'empvsmle': Counter({'tie': 23, 'emp': 9, 'mle': 8}),
+  'ipsvsmle': Counter({'tie': 16, 'mle': 15, 'ips': 9}),
   'snipsvsmle': Counter({'tie': 33, 'mle': 7})})
 ('Cover 32',
- {'ipsvsmle': Counter({'ips': 16, 'tie': 13, 'mle': 11}),
-  'snipsvsmle': Counter({'tie': 29, 'mle': 6, 'snips': 5})})
+ {'empvsmle': Counter({'tie': 17, 'emp': 13, 'mle': 10}),
+  'ipsvsmle': Counter({'ips': 16, 'tie': 13, 'mle': 11}),
+  'snipsvsmle': Counter({'tie': 28, 'snips': 6, 'mle': 6})})
 ```
 
 ## Learning
